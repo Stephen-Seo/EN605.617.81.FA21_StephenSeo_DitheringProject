@@ -3,6 +3,7 @@ project(EN605.617.81.FA21_StephenSeo_DitheringProject)
 
 set(Project_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/image.cc
 )
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic")
@@ -16,3 +17,12 @@ endif()
 
 add_executable(DitheringProject
   ${Project_SOURCES})
+
+find_package(PNG REQUIRED)
+
+target_include_directories(DitheringProject PUBLIC
+  ${PNG_INCLUDE_DIRS}
+)
+target_link_libraries(DitheringProject PUBLIC
+  ${PNG_LIBRARIES}
+)
