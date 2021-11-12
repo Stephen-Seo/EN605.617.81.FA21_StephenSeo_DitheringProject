@@ -1,6 +1,7 @@
 #include "image.h"
 
 #include <array>
+#include <cmath>
 #include <cstdio>
 #include <fstream>
 #include <iostream>
@@ -109,16 +110,26 @@ bool Image::SaveAsPNG(const std::string &filename, bool overwrite) {
   png_init_io(png_ptr, file);
 
   // set image information
-  png_set_IHDR(png_ptr, png_info_ptr, width_, height_, 8,
-               PNG_COLOR_TYPE_RGB_ALPHA, PNG_INTERLACE_NONE,
-               PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+  if (is_grayscale_) {
+    png_set_IHDR(png_ptr, png_info_ptr, width_, height_, 8, PNG_COLOR_TYPE_GRAY,
+                 PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT,
+                 PNG_FILTER_TYPE_DEFAULT);
+  } else {
+    png_set_IHDR(png_ptr, png_info_ptr, width_, height_, 8,
+                 PNG_COLOR_TYPE_RGB_ALPHA, PNG_INTERLACE_NONE,
+                 PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+  }
 
   // write png info
   png_write_info(png_ptr, png_info_ptr);
 
   // write rows of image data
   for (unsigned int y = 0; y < height_; ++y) {
-    png_write_row(png_ptr, &data_.at(y * width_ * 4));
+    if (is_grayscale_) {
+      png_write_row(png_ptr, &data_.at(y * width_));
+    } else {
+      png_write_row(png_ptr, &data_.at(y * width_ * 4));
+    }
   }
 
   // finish writing image data
@@ -334,9 +345,316 @@ void Image::DecodePNG(const std::string &filename) {
 }
 
 void Image::DecodePGM(const std::string &filename) {
-  // TODO
+  is_grayscale_ = true;
+
+  std::ifstream ifs(filename);
+  if (!ifs.is_open()) {
+    std::cout << "ERROR: Failed to open file \"" << filename << '"'
+              << std::endl;
+    return;
+  }
+
+  std::string str_input;
+  int int_input;
+  ifs >> str_input;
+  if (!ifs.good()) {
+    std::cout << "ERROR: Failed to parse file (PGM first identifier) \""
+              << filename << '"' << std::endl;
+    return;
+  }
+
+  if (str_input.compare("P2") == 0) {
+    // data stored in ascii format
+
+    // get width
+    ifs >> int_input;
+    if (!ifs.good() || int_input <= 0) {
+      std::cout << "ERROR: Failed to parse file (PGM width) \"" << filename
+                << '"' << std::endl;
+      return;
+    }
+    width_ = int_input;
+
+    // get height
+    ifs >> int_input;
+    if (!ifs.good() || int_input <= 0) {
+      std::cout << "ERROR: Failed to parse file (PGM height) \"" << filename
+                << '"' << std::endl;
+      return;
+    }
+    height_ = int_input;
+
+    // get max_value
+    ifs >> int_input;
+    if (!ifs.good() || int_input <= 0) {
+      std::cout << "ERROR: Failed to parse file (PGM max) \"" << filename << '"'
+                << std::endl;
+      return;
+    }
+    float max_value = int_input;
+
+    // parse data
+    data_.clear();
+    data_.reserve(width_ * height_);
+    float value;
+    for (unsigned int i = 0; i < width_ * height_; ++i) {
+      ifs >> int_input;
+      if (!ifs.good()) {
+        std::cout << "ERROR: Failed to parse file (PGM data) \"" << filename
+                  << '"' << std::endl;
+        return;
+      }
+      value = (float)int_input / max_value;
+      data_.push_back(std::round(value * 255.0F));
+    }
+  } else if (str_input.compare("P5") == 0) {
+    // data stored in raw format
+
+    // get width
+    ifs >> int_input;
+    if (!ifs.good() || int_input <= 0) {
+      std::cout << "ERROR: Failed to parse file (PGM width) \"" << filename
+                << '"' << std::endl;
+      return;
+    }
+    width_ = int_input;
+
+    // get height
+    ifs >> int_input;
+    if (!ifs.good() || int_input <= 0) {
+      std::cout << "ERROR: Failed to parse file (PGM height) \"" << filename
+                << '"' << std::endl;
+      return;
+    }
+    height_ = int_input;
+
+    // get max_value
+    ifs >> int_input;
+    if (!ifs.good() || int_input <= 0) {
+      std::cout << "ERROR: Failed to parse file (PGM max) \"" << filename << '"'
+                << std::endl;
+      return;
+    }
+    int max_value_int = int_input;
+    float max_value = int_input;
+
+    // validate max_value
+    if (max_value_int != 255 && max_value_int != 65535) {
+      std::cout << "ERROR: Invalid max value for PGM (should be 255 or 65535) "
+                   "(filename \""
+                << filename << "\")" << std::endl;
+      return;
+    }
+
+    // extract whitespace before data
+    {
+      int c = ifs.get();
+      if (c != '\n' && c != ' ') {
+        std::cout << "WARNING: File data after PGM max is not whitespace "
+                     "(filename \""
+                  << filename << "\")"
+                  << " value is " << (int)c << std::endl;
+      }
+
+      if (!ifs.good()) {
+        std::cout << "ERROR: Failed to parse file (PGM after whitespace) \""
+                  << filename << '"' << std::endl;
+        return;
+      }
+    }
+
+    // parse raw data
+    data_.clear();
+    data_.reserve(width_ * height_);
+    float value;
+    for (unsigned int i = 0; i < width_ * height_; ++i) {
+      if (max_value_int == 255) {
+        value = ifs.get() / max_value;
+        data_.push_back(std::round(value * 255.0F));
+        if (!ifs.good()) {
+          std::cout << "ERROR: Failed to parse file (PGM data) \"" << filename
+                    << '"' << std::endl;
+          return;
+        }
+      } else /* if (max_value_int == 65535) */ {
+        value = (ifs.get() & 0xFF) | ((ifs.get() << 8) & 0xFF00);
+        value /= max_value;
+        data_.push_back(std::round(value * 255.0F));
+        if (!ifs.good()) {
+          std::cout << "ERROR: Failed to parse file (PGM data 16-bit) \""
+                    << filename << '"' << std::endl;
+          return;
+        }
+      }
+    }
+
+    if (ifs.get() != decltype(ifs)::traits_type::eof()) {
+      std::cout << "WARNING: Trailing data in PGM file \"" << filename << '"'
+                << std::endl;
+    }
+  } else {
+    std::cout << "ERROR: Invalid \"magic number\" in header of file \""
+              << filename << '"' << std::endl;
+  }
 }
 
 void Image::DecodePPM(const std::string &filename) {
-  // TODO
+  is_grayscale_ = false;
+  std::ifstream ifs(filename);
+  if (!ifs.is_open()) {
+    std::cout << "ERROR: Failed to open file \"" << filename << '"'
+              << std::endl;
+    return;
+  }
+
+  std::string str_input;
+  int int_input;
+  ifs >> str_input;
+  if (!ifs.good()) {
+    std::cout << "ERROR: Failed to parse file (PPM first identifier) \""
+              << filename << '"' << std::endl;
+    return;
+  }
+
+  if (str_input.compare("P3") == 0) {
+    // data stored in ascii format
+
+    // get width
+    ifs >> int_input;
+    if (!ifs.good() || int_input <= 0) {
+      std::cout << "ERROR: Failed to parse file (PPM width) \"" << filename
+                << '"' << std::endl;
+      return;
+    }
+    width_ = int_input;
+
+    // get height
+    ifs >> int_input;
+    if (!ifs.good() || int_input <= 0) {
+      std::cout << "ERROR: Failed to parse file (PPM height) \"" << filename
+                << '"' << std::endl;
+      return;
+    }
+    height_ = int_input;
+
+    // get max_value
+    ifs >> int_input;
+    if (!ifs.good() || int_input <= 0) {
+      std::cout << "ERROR: Failed to parse file (PPM max) \"" << filename << '"'
+                << std::endl;
+      return;
+    }
+    float max_value = int_input;
+
+    // parse data
+    data_.clear();
+    data_.reserve(width_ * height_ * 4);
+    float value;
+    for (unsigned int i = 0; i < width_ * height_ * 3; ++i) {
+      ifs >> int_input;
+      if (!ifs.good()) {
+        std::cout << "ERROR: Failed to parse file (PPM data) \"" << filename
+                  << '"' << std::endl;
+        return;
+      }
+      value = (float)int_input / max_value;
+      data_.push_back(std::round(value * 255.0F));
+      if (i % 3 == 2) {
+        // PPM is RGB but Image stores as RGBA
+        data_.push_back(255);
+      }
+    }
+  } else if (str_input.compare("P6") == 0) {
+    // data stored in raw format
+
+    // get width
+    ifs >> int_input;
+    if (!ifs.good() || int_input <= 0) {
+      std::cout << "ERROR: Failed to parse file (PPM width) \"" << filename
+                << '"' << std::endl;
+      return;
+    }
+    width_ = int_input;
+
+    // get height
+    ifs >> int_input;
+    if (!ifs.good() || int_input <= 0) {
+      std::cout << "ERROR: Failed to parse file (PPM height) \"" << filename
+                << '"' << std::endl;
+      return;
+    }
+    height_ = int_input;
+
+    // get max_value
+    ifs >> int_input;
+    if (!ifs.good() || int_input <= 0) {
+      std::cout << "ERROR: Failed to parse file (PPM max) \"" << filename << '"'
+                << std::endl;
+      return;
+    }
+    int max_value_int = int_input;
+    float max_value = int_input;
+
+    // validate max_value
+    if (max_value_int != 255 && max_value_int != 65535) {
+      std::cout << "ERROR: Invalid max value for PPM (should be 255 or 65535) "
+                   "(filename \""
+                << filename << "\")" << std::endl;
+      return;
+    }
+
+    // extract whitespace before data
+    {
+      int c = ifs.get();
+      if (c != '\n' && c != ' ') {
+        std::cout
+            << "WARNING: File data after PPM max is not whitespace (filename \""
+            << filename << "\") value is " << (int)c << std::endl;
+      }
+
+      if (!ifs.good()) {
+        std::cout << "ERROR: Failed to parse file (PPM after whitespace) \""
+                  << filename << '"' << std::endl;
+        return;
+      }
+    }
+
+    // parse raw data
+    data_.clear();
+    data_.reserve(width_ * height_ * 4);
+    float value;
+    for (unsigned int i = 0; i < width_ * height_ * 3; ++i) {
+      if (max_value_int == 255) {
+        value = ifs.get() / max_value;
+        data_.push_back(std::round(value * 255.0F));
+        if (!ifs.good()) {
+          std::cout << "ERROR: Failed to parse file (PPM data) \"" << filename
+                    << '"' << std::endl;
+          return;
+        }
+      } else /* if (max_value_int == 65535) */ {
+        value = (ifs.get() & 0xFF) | ((ifs.get() << 8) & 0xFF00);
+        value /= max_value;
+        data_.push_back(std::round(value * 255.0F));
+        if (!ifs.good()) {
+          std::cout << "ERROR: Failed to parse file (PPM data 16-bit) \""
+                    << filename << '"' << std::endl;
+          return;
+        }
+      }
+
+      if (i % 3 == 2) {
+        // PPM is RGB but Image stores as RGBA
+        data_.push_back(255);
+      }
+    }
+
+    if (ifs.get() != decltype(ifs)::traits_type::eof()) {
+      std::cout << "WARNING: Trailing data in PPM file \"" << filename << '"'
+                << std::endl;
+    }
+  } else {
+    std::cout << "ERROR: Invalid \"magic number\" in header of file \""
+              << filename << '"' << std::endl;
+  }
 }
