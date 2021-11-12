@@ -58,6 +58,20 @@ class Image {
   /// Returns true if the image is grayscale. If false, then the image is RGBA.
   bool IsGrayscale() const;
 
+  /*!
+   * \brief Saves the current image data as a PPM file.
+   *
+   * Returns false if the filename already exists and overwrite is false, or if
+   * saving failed.
+   *
+   * If packed is true, then the data is stored in binary format, otherwise the
+   * data is stored as ascii format.
+   */
+  bool SaveAsPPM(const std::string &filename, bool overwrite,
+                 bool packed = true);
+  /// Same as SaveAsPPM(const std::string &filename)
+  bool SaveAsPPM(const char *filename, bool overwrite, bool packed = true);
+
  private:
   std::vector<uint8_t> data_;
   unsigned int width_;
