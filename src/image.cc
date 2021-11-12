@@ -60,6 +60,80 @@ unsigned int Image::GetHeight() const { return height_; }
 
 bool Image::IsGrayscale() const { return is_grayscale_; }
 
+bool Image::SaveAsPNG(const std::string &filename, bool overwrite) {
+  if (!overwrite) {
+    std::ifstream ifs(filename);
+    if (ifs.is_open()) {
+      std::cout << "ERROR: File \"" << filename
+                << "\" exists but overwrite == false" << std::endl;
+      return false;
+    }
+  }
+
+  FILE *file = std::fopen(filename.c_str(), "wb");
+  if (!file) {
+    std::cout << "ERROR: Failed to open file \"" << filename
+              << "\" for writing png" << std::endl;
+    return false;
+  }
+
+  // init required structs for png encoding
+  png_structp png_ptr =
+      png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
+  if (!png_ptr) {
+    std::cout << "ERROR: Failed to initialize libpng (png_ptr) for encoding "
+                 "PNG file \""
+              << filename << '"' << std::endl;
+    std::fclose(file);
+    return false;
+  }
+
+  png_infop png_info_ptr = png_create_info_struct(png_ptr);
+  if (!png_info_ptr) {
+    std::cout << "ERROR: Failed to initialize libpng (png_infop) for decoding "
+                 "PNG file \""
+              << filename << '"' << std::endl;
+    png_destroy_write_struct(&png_ptr, nullptr);
+    std::fclose(file);
+    return false;
+  }
+
+  // required to handle libpng errors
+  if (setjmp(png_jmpbuf(png_ptr))) {
+    png_destroy_write_struct(&png_ptr, &png_info_ptr);
+    std::fclose(file);
+    return false;
+  }
+
+  // give FILE handle to libpng
+  png_init_io(png_ptr, file);
+
+  // set image information
+  png_set_IHDR(png_ptr, png_info_ptr, width_, height_, 8,
+               PNG_COLOR_TYPE_RGB_ALPHA, PNG_INTERLACE_NONE,
+               PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+
+  // write png info
+  png_write_info(png_ptr, png_info_ptr);
+
+  // write rows of image data
+  for (unsigned int y = 0; y < height_; ++y) {
+    png_write_row(png_ptr, &data_.at(y * width_ * 4));
+  }
+
+  // finish writing image data
+  png_write_end(png_ptr, png_info_ptr);
+
+  // cleanup
+  png_destroy_write_struct(&png_ptr, &png_info_ptr);
+  fclose(file);
+  return true;
+}
+
+bool Image::SaveAsPNG(const char *filename, bool overwrite) {
+  return SaveAsPNG(std::string(filename), overwrite);
+}
+
 bool Image::SaveAsPPM(const std::string &filename, bool overwrite,
                       bool packed) {
   if (!IsValid()) {
@@ -243,6 +317,7 @@ void Image::DecodePNG(const std::string &filename) {
 
   // cleanup
   png_destroy_read_struct(&png_ptr, &png_info_ptr, &png_end_info_ptr);
+  fclose(file);
 
   // verify
   if (is_grayscale_) {

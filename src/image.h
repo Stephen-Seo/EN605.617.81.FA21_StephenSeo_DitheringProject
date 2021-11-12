@@ -59,6 +59,16 @@ class Image {
   bool IsGrayscale() const;
 
   /*!
+   * \brief Saves the current image data as a PNG file.
+   *
+   * Returns false if the filename already exists and overwrite is false, or if
+   * saving failed.
+   */
+  bool SaveAsPNG(const std::string &filename, bool overwrite);
+  /// Same as SaveAsPNG()
+  bool SaveAsPNG(const char *filename, bool overwrite);
+
+  /*!
    * \brief Saves the current image data as a PPM file.
    *
    * Returns false if the filename already exists and overwrite is false, or if

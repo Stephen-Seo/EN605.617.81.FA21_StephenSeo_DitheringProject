@@ -3,7 +3,7 @@
 int main(int argc, char **argv) {
   Image image("testin.png");
 
-  image.SaveAsPPM("testout.ppm", true, true);
+  image.SaveAsPNG("testout.png", true);
 
   return 0;
 }
