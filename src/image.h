@@ -69,7 +69,7 @@ class Image {
    */
   bool SaveAsPPM(const std::string &filename, bool overwrite,
                  bool packed = true);
-  /// Same as SaveAsPPM(const std::string &filename)
+  /// Same as SaveAsPPM()
   bool SaveAsPPM(const char *filename, bool overwrite, bool packed = true);
 
  private:
