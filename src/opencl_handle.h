@@ -3,32 +3,37 @@
 
 #include <memory>
 
-class OpenCLHandle {
- public:
-  typedef std::shared_ptr<OpenCLHandle> Ptr;
-  typedef std::weak_ptr<OpenCLHandle> WeakPtr;
-
-  ~OpenCLHandle();
-
-  // no copy
-  OpenCLHandle(const OpenCLHandle &other) = delete;
-  OpenCLHandle &operator=(const OpenCLHandle &other) = delete;
-
-  // allow move
-  OpenCLHandle(OpenCLHandle &&other) = default;
-  OpenCLHandle &operator=(OpenCLHandle &&other) = default;
-
-  // TODO add functions here that allow creating/deleting/using kernel function
-  // programs
-
- private:
-  friend class OpenCLContext;
-
-  OpenCLHandle();
-};
-
 class OpenCLContext {
  public:
+  typedef std::shared_ptr<OpenCLContext> Ptr;
+  typedef std::weak_ptr<OpenCLContext> WeakPtr;
+
+  class OpenCLHandle {
+   public:
+    typedef std::shared_ptr<OpenCLHandle> Ptr;
+    typedef std::weak_ptr<OpenCLHandle> WeakPtr;
+
+    ~OpenCLHandle();
+
+    // no copy
+    OpenCLHandle(const OpenCLHandle &other) = delete;
+    OpenCLHandle &operator=(const OpenCLHandle &other) = delete;
+
+    // allow move
+    OpenCLHandle(OpenCLHandle &&other) = default;
+    OpenCLHandle &operator=(OpenCLHandle &&other) = default;
+
+    // TODO add functions here that allow creating/deleting/using kernel
+    // function programs
+
+   private:
+    friend class OpenCLContext;
+
+    OpenCLHandle();
+
+    OpenCLContext::WeakPtr opencl_ptr_;
+  };
+
   ~OpenCLContext();
 
   // no copy
@@ -42,11 +47,9 @@ class OpenCLContext {
   OpenCLHandle::Ptr GetHandle();
 
  private:
-  friend class OpenCLHandle;
-
   OpenCLContext();
 
-  static std::unique_ptr<OpenCLContext> instance_;
+  static Ptr instance_;
   OpenCLHandle::WeakPtr weak_handle_;
 
   static void CheckRefCount();

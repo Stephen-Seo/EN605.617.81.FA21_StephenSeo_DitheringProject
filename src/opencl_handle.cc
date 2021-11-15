@@ -1,12 +1,12 @@
 #include "opencl_handle.h"
 
-std::unique_ptr<OpenCLContext> OpenCLContext::instance_ = {};
+OpenCLContext::Ptr OpenCLContext::instance_ = {};
 
-OpenCLHandle::OpenCLHandle() {
+OpenCLContext::OpenCLHandle::OpenCLHandle() {
   // TODO
 }
 
-OpenCLHandle::~OpenCLHandle() { OpenCLContext::CheckRefCount(); }
+OpenCLContext::OpenCLHandle::~OpenCLHandle() { OpenCLContext::CheckRefCount(); }
 
 OpenCLContext::OpenCLContext() {
   // TODO
@@ -16,7 +16,7 @@ OpenCLContext::~OpenCLContext() {
   // TODO
 }
 
-OpenCLHandle::Ptr OpenCLContext::GetHandle() {
+OpenCLContext::OpenCLHandle::Ptr OpenCLContext::GetHandle() {
   if (!instance_) {
     // cannot use make_unique due to private constructor
     instance_ = std::unique_ptr<OpenCLContext>(new OpenCLContext());
