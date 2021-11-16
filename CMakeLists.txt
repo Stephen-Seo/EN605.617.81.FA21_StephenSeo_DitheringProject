@@ -20,11 +20,15 @@ add_executable(DitheringProject
   ${Project_SOURCES})
 #target_compile_features(DitheringProject PUBLIC cxx_std_11)
 
+find_package(OpenCL REQUIRED)
+
 find_package(PNG REQUIRED)
 
 target_include_directories(DitheringProject PUBLIC
+  ${OpenCL_INCLUDE_DIRS}
   ${PNG_INCLUDE_DIRS}
 )
 target_link_libraries(DitheringProject PUBLIC
+  ${OpenCL_LIBRARIES}
   ${PNG_LIBRARIES}
 )
