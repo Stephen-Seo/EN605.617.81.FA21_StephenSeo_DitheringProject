@@ -17,10 +17,10 @@ class Image {
    * Image supports decoding .png, .pgm, and .ppm . Decoding only checks the
    * filename suffix as a guide on which file-type to expect.
    */
-  Image(const char *filename);
+  explicit Image(const char *filename);
 
   /// Same constructor as Image(const char *filename)
-  Image(const std::string &filename);
+  explicit Image(const std::string &filename);
 
   // allow copy
   Image(const Image &other) = default;

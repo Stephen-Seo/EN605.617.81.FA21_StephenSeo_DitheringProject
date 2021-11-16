@@ -562,7 +562,8 @@ OpenCLContext::OpenCLContext() : context_(nullptr), queue_(nullptr) {
   }
 
   cl_context_properties context_properties[] = {
-      CL_CONTEXT_PLATFORM, (cl_context_properties)first_platform_id, 0};
+      CL_CONTEXT_PLATFORM,
+      static_cast<cl_context_properties>(first_platform_id), 0};
 
   context_ = clCreateContextFromType(context_properties, CL_DEVICE_TYPE_GPU,
                                      nullptr, nullptr, &err_num);

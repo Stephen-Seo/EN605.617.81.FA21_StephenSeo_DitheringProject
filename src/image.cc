@@ -272,7 +272,6 @@ void Image::DecodePNG(const std::string &filename) {
   // pass the FILE pointer to libpng
   png_init_io(png_ptr, file);
 
-  // TODO BEGIN
   // have libpng process the png data
   png_read_png(png_ptr, png_info_ptr, PNG_TRANSFORM_IDENTITY, nullptr);
 
@@ -404,7 +403,7 @@ void Image::DecodePGM(const std::string &filename) {
                   << '"' << std::endl;
         return;
       }
-      value = (float)int_input / max_value;
+      value = static_cast<float>(int_input) / max_value;
       data_.push_back(std::round(value * 255.0F));
     }
   } else if (str_input.compare("P5") == 0) {
@@ -453,7 +452,7 @@ void Image::DecodePGM(const std::string &filename) {
         std::cout << "WARNING: File data after PGM max is not whitespace "
                      "(filename \""
                   << filename << "\")"
-                  << " value is " << (int)c << std::endl;
+                  << " value is " << c << std::endl;
       }
 
       if (!ifs.good()) {
@@ -557,7 +556,7 @@ void Image::DecodePPM(const std::string &filename) {
                   << '"' << std::endl;
         return;
       }
-      value = (float)int_input / max_value;
+      value = static_cast<float>(int_input) / max_value;
       data_.push_back(std::round(value * 255.0F));
       if (i % 3 == 2) {
         // PPM is RGB but Image stores as RGBA
@@ -609,7 +608,7 @@ void Image::DecodePPM(const std::string &filename) {
       if (c != '\n' && c != ' ') {
         std::cout
             << "WARNING: File data after PPM max is not whitespace (filename \""
-            << filename << "\") value is " << (int)c << std::endl;
+            << filename << "\") value is " << c << std::endl;
       }
 
       if (!ifs.good()) {
