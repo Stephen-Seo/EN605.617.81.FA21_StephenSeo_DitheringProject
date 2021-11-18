@@ -22,6 +22,14 @@ class OpenCLContext {
   typedef std::shared_ptr<OpenCLContext> Ptr;
   typedef std::weak_ptr<OpenCLContext> WeakPtr;
 
+  /*!
+   * \brief A simplified handle to OpenCL
+   *
+   * This class can only be obtained by a call to OpenCLContext::GetHandle()
+   *
+   * OpenCL is automatically cleaned up when all shared ptrs of OpenCLHandle are
+   * destructed
+   */
   class OpenCLHandle {
    public:
     typedef std::shared_ptr<OpenCLHandle> Ptr;
@@ -33,9 +41,9 @@ class OpenCLContext {
     OpenCLHandle(const OpenCLHandle &other) = delete;
     OpenCLHandle &operator=(const OpenCLHandle &other) = delete;
 
-    // allow move
-    OpenCLHandle(OpenCLHandle &&other) = default;
-    OpenCLHandle &operator=(OpenCLHandle &&other) = default;
+    // no move
+    OpenCLHandle(OpenCLHandle &&other) = delete;
+    OpenCLHandle &operator=(OpenCLHandle &&other) = delete;
 
     bool IsValid() const;
 
@@ -206,6 +214,7 @@ class OpenCLContext {
   OpenCLContext(OpenCLContext &&other) = delete;
   OpenCLContext &operator=(OpenCLContext &&other) = delete;
 
+  /// Returns a OpenCLHandle wrapped in a std::shared_ptr
   OpenCLHandle::Ptr GetHandle();
 
  private:
@@ -218,7 +227,7 @@ class OpenCLContext {
   cl_command_queue queue_;
   cl_device_id device_id_;
 
-  static void CheckRefCount();
+  static void CleanupInstance();
 
   bool IsValid() const;
 };

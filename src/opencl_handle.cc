@@ -11,7 +11,7 @@ OpenCLContext::OpenCLHandle::OpenCLHandle()
 
 OpenCLContext::OpenCLHandle::~OpenCLHandle() {
   CleanupAllKernels();
-  OpenCLContext::CheckRefCount();
+  OpenCLContext::CleanupInstance();
 }
 
 bool OpenCLContext::OpenCLHandle::IsValid() const {
@@ -650,13 +650,9 @@ OpenCLContext::OpenCLHandle::Ptr OpenCLContext::GetHandle() {
   return strong_handle;
 }
 
-void OpenCLContext::CheckRefCount() {
-  if (instance_) {
-    if (instance_->weak_handle_.use_count() <= 1) {
-      // Last shared_ptr is destructing, cleanup context by calling destructor
-      instance_.reset();
-    }
-  }
+void OpenCLContext::CleanupInstance() {
+  // OpenCLHandle is destructing, cleanup context by calling destructor
+  instance_.reset();
 }
 
 bool OpenCLContext::IsValid() const { return context_ && queue_; }
