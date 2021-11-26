@@ -2,8 +2,11 @@
 #define IGPUP_DITHERING_PROJECT_IMAGE_H_
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
+
+#include "opencl_handle.h"
 
 class Image {
  public:
@@ -82,7 +85,36 @@ class Image {
   /// Same as SaveAsPPM()
   bool SaveAsPPM(const char *filename, bool overwrite, bool packed = true);
 
+  /// Converts rgb to gray with luminance-preserving algorithm
+  static uint8_t ColorToGray(uint8_t red, uint8_t green, uint8_t blue);
+
+  /*!
+   * \brief Returns a grayscale version of the Image.
+   *
+   * Using std::optional would be ideal here, but this program is aiming for
+   * compatibility up to C++11, and std::optional was made available in C++17.
+   *
+   * \return A std::unique_ptr holding an Image on success, empty otherwise.
+   */
+  std::unique_ptr<Image> ToGrayscale() const;
+
+  /*!
+   * \brief Returns a grayscaled and dithered version of the current Image.
+   *
+   * \return A std::unique_ptr holding an Image on success, empty otherwise.
+   */
+  std::unique_ptr<Image> ToDitheredWithBlueNoise(Image *blue_noise);
+
+  /// Returns the Dithering Kernel function as a C string
+  static const char *GetDitheringKernel();
+
+  /// Returns the OpenCLHandle::Ptr instance
+  OpenCLHandle::Ptr GetOpenCLHandle();
+
  private:
+  static const char *opencl_kernel_;
+  OpenCLHandle::Ptr opencl_handle_;
+  /// Internally holds rgba
   std::vector<uint8_t> data_;
   unsigned int width_;
   unsigned int height_;

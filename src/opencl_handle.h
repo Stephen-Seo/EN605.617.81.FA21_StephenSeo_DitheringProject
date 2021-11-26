@@ -141,6 +141,8 @@ class OpenCLContext {
      */
     std::size_t GetWorkGroupSize(KernelID kernel_id);
 
+    std::size_t GetDeviceMaxWorkGroupSize();
+
     /*!
      * \brief Executes the kernel with the given kernel_id
      *
@@ -148,6 +150,16 @@ class OpenCLContext {
      */
     bool ExecuteKernel(KernelID kernel_id, std::size_t global_work_size,
                        std::size_t local_work_size, bool is_blocking);
+
+    /*!
+     * \brief Executes the kernel with the given kernel_id
+     *
+     * \return true on success
+     */
+    bool ExecuteKernel2D(KernelID kernel_id, std::size_t global_work_size_0,
+                         std::size_t global_work_size_1,
+                         std::size_t local_work_size_0,
+                         std::size_t local_work_size_1, bool is_blocking);
 
     /*!
      * \brief Copies device memory to data_out
@@ -215,7 +227,7 @@ class OpenCLContext {
   OpenCLContext &operator=(OpenCLContext &&other) = delete;
 
   /// Returns a OpenCLHandle wrapped in a std::shared_ptr
-  OpenCLHandle::Ptr GetHandle();
+  static OpenCLHandle::Ptr GetHandle();
 
  private:
   OpenCLContext();

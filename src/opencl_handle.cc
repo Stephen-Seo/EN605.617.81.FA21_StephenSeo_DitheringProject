@@ -379,6 +379,31 @@ std::size_t OpenCLContext::OpenCLHandle::GetWorkGroupSize(KernelID kernel_id) {
   return size;
 }
 
+std::size_t OpenCLContext::OpenCLHandle::GetDeviceMaxWorkGroupSize() {
+  if (!IsValid()) {
+    std::cout << "ERROR: OpenCLContext is not initialized" << std::endl;
+    return 0;
+  }
+  auto context_ptr = opencl_ptr_.lock();
+  if (!context_ptr) {
+    std::cout << "ERROR: OpenCLHandle::GetDeviceMaxWorkGroupSize: "
+                 "OpenCLContext is not initialized"
+              << std::endl;
+    return 0;
+  }
+  std::size_t value;
+  cl_int err_num =
+      clGetDeviceInfo(context_ptr->device_id_, CL_DEVICE_MAX_WORK_GROUP_SIZE,
+                      sizeof(std::size_t), &value, nullptr);
+  if (err_num != CL_SUCCESS) {
+    std::cout << "ERROR: OpenCLHandle::GetDeviceMaxWorkGroupSize: "
+                 "Failed to get max work group size"
+              << std::endl;
+  }
+
+  return value;
+}
+
 bool OpenCLContext::OpenCLHandle::ExecuteKernel(KernelID kernel_id,
                                                 std::size_t global_work_size,
                                                 std::size_t local_work_size,
@@ -418,6 +443,58 @@ bool OpenCLContext::OpenCLHandle::ExecuteKernel(KernelID kernel_id,
       std::cout << "WARNING: OpenCLHandle::ExecuteKernel: Explicit wait on "
                    "kernel failed"
                 << std::endl;
+    }
+  }
+
+  clReleaseEvent(event);
+
+  return true;
+}
+
+bool OpenCLContext::OpenCLHandle::ExecuteKernel2D(
+    KernelID kernel_id, std::size_t global_work_size_0,
+    std::size_t global_work_size_1, std::size_t local_work_size_0,
+    std::size_t local_work_size_1, bool is_blocking) {
+  if (!IsValid()) {
+    std::cout << "ERROR: OpenCLContext is not initialized" << std::endl;
+    return false;
+  }
+  auto context_ptr = opencl_ptr_.lock();
+  if (!context_ptr) {
+    std::cout << "ERROR: OpenCLHandle::ExecuteKernel2D: OpenCLContext is not "
+                 "initialized"
+              << std::endl;
+    return false;
+  }
+
+  auto kernel_iter = kernels_.find(kernel_id);
+  if (kernel_iter == kernels_.end()) {
+    std::cout << "ERROR: OpenCLHandle::ExecuteKernel2D: Invalid kernel_id"
+              << std::endl;
+    return false;
+  }
+
+  std::size_t global_work_size[2] = {global_work_size_0, global_work_size_1};
+  std::size_t local_work_size[2] = {local_work_size_0, local_work_size_1};
+  cl_event event;
+  cl_int err_num = clEnqueueNDRangeKernel(
+      context_ptr->queue_, kernel_iter->second.kernel_, 2, nullptr,
+      global_work_size, local_work_size, 0, nullptr, &event);
+  if (err_num != CL_SUCCESS) {
+    std::cout
+        << "ERROR: OpenCLHandle::ExecuteKernel2D: Failed to execute kernel"
+        << " (" << err_num << ")" << std::endl;
+    return false;
+  }
+
+  if (is_blocking) {
+    err_num = clWaitForEvents(1, &event);
+    if (err_num != CL_SUCCESS) {
+      std::cout << "WARNING: OpenCLHandle::ExecuteKernel2D: Explicit wait on "
+                   "kernel failed"
+                << " (" << err_num << ")" << std::endl;
+      clReleaseEvent(event);
+      return false;
     }
   }
 
