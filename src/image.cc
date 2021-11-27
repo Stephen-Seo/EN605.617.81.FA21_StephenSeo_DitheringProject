@@ -787,19 +787,28 @@ std::unique_ptr<Image> Image::ToDitheredWithBlueNoise(Image *blue_noise) {
     opencl_handle->CleanupAllKernels();
     return {};
   }
-  unsigned int blue_noise_size = blue_noise->GetWidth();
+  unsigned int blue_noise_width = blue_noise->GetWidth();
   if (!opencl_handle->AssignKernelArgument(kid, 5, sizeof(unsigned int),
-                                           &blue_noise_size)) {
+                                           &blue_noise_width)) {
     std::cout << "ERROR ToDitheredWithBlueNoise: Failed to set parameter 5"
               << std::endl;
     opencl_handle->CleanupAllKernels();
     return {};
   }
-  std::srand(std::time(nullptr));
-  unsigned int blue_noise_offset = std::rand() % blue_noise_size;
+  unsigned int blue_noise_height = blue_noise->GetHeight();
   if (!opencl_handle->AssignKernelArgument(kid, 6, sizeof(unsigned int),
-                                           &blue_noise_offset)) {
+                                           &blue_noise_height)) {
     std::cout << "ERROR ToDitheredWithBlueNoise: Failed to set parameter 6"
+              << std::endl;
+    opencl_handle->CleanupAllKernels();
+    return {};
+  }
+  std::srand(std::time(nullptr));
+  unsigned int blue_noise_offset =
+      std::rand() % (blue_noise_width * blue_noise_height);
+  if (!opencl_handle->AssignKernelArgument(kid, 7, sizeof(unsigned int),
+                                           &blue_noise_offset)) {
+    std::cout << "ERROR ToDitheredWithBlueNoise: Failed to set parameter 7"
               << std::endl;
     opencl_handle->CleanupAllKernels();
     return {};
@@ -856,8 +865,11 @@ const char *Image::GetDitheringKernel() {
         "unsigned int x,\n"
         "unsigned int y,\n"
         "unsigned int o,\n"
-        "unsigned int bn_size) {\n"
-        "return (o + x + y * bn_size) % (bn_size * bn_size);\n"
+        "unsigned int bn_width,\n"
+        "unsigned int bn_height) {\n"
+        "unsigned int offset_x = (o % bn_width + x) % bn_width;\n"
+        "unsigned int offset_y = (o / bn_width + y) % bn_height;\n"
+        "return offset_x + offset_y * bn_width;\n"
         "}\n"
         "\n"
         "__kernel void Dither(\n"
@@ -866,12 +878,13 @@ const char *Image::GetDitheringKernel() {
         "__global unsigned char *output,\n"
         "const unsigned int input_width,\n"
         "const unsigned int input_height,\n"
-        "const unsigned int blue_noise_size,\n"
+        "const unsigned int blue_noise_width,\n"
+        "const unsigned int blue_noise_height,\n"
         "const unsigned int blue_noise_offset) {\n"
         "unsigned int idx = get_global_id(0);\n"
         "unsigned int idy = get_global_id(1);\n"
-        "unsigned int b_i = BN_INDEX(idx, idy, blue_noise_offset, "
-        "blue_noise_size);\n"
+        "unsigned int b_i = BN_INDEX(idx, idy, blue_noise_offset,\n"
+        "blue_noise_width, blue_noise_height);\n"
         "unsigned int input_index = idx + idy * input_width;\n"
         "output[input_index] = input[input_index] > blue_noise[b_i] ? 255 : "
         "0;\n"

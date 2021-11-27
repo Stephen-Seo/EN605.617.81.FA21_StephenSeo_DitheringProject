@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 3.13)
 project(EN605.617.81.FA21_StephenSeo_DitheringProject)
 
 set(Project_SOURCES
