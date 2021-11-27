@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 
+#include <png.h>
+
 #include "opencl_handle.h"
 
 class Image {
@@ -128,12 +130,16 @@ class Image {
  private:
   static const char *opencl_grayscale_kernel_;
   static const char *opencl_color_kernel_;
+  static const std::array<png_color, 2> dither_bw_palette_;
+  static const std::array<png_color, 8> dither_color_palette_;
   OpenCLHandle::Ptr opencl_handle_;
   /// Internally holds rgba
   std::vector<uint8_t> data_;
   unsigned int width_;
   unsigned int height_;
   bool is_grayscale_;
+  bool is_dithered_grayscale_;
+  bool is_dithered_color_;
 
   void DecodePNG(const std::string &filename);
   void DecodePGM(const std::string &filename);

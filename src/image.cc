@@ -1,23 +1,49 @@
 #include "image.h"
 
 #include <array>
+#include <cassert>
 #include <cmath>
 #include <cstdio>
 #include <ctime>
 #include <fstream>
 #include <iostream>
 
-#include <png.h>
-
 const char *Image::opencl_grayscale_kernel_ = nullptr;
 const char *Image::opencl_color_kernel_ = nullptr;
 
-Image::Image() : data_(), width_(0), height_(0), is_grayscale_(true) {}
+const std::array<png_color, 2> Image::dither_bw_palette_ = {
+    png_color{0, 0, 0},       // black
+    png_color{255, 255, 255}  // white
+};
+
+const std::array<png_color, 8> Image::dither_color_palette_ = {
+    png_color{0, 0, 0},        // black
+    png_color{255, 255, 255},  // white
+    png_color{255, 0, 0},      // red
+    png_color{0, 255, 0},      // green
+    png_color{0, 0, 255},      // blue
+    png_color{255, 255, 0},    // yellow
+    png_color{255, 0, 255},    // magenta
+    png_color{0, 255, 255},    // cyan
+};
+
+Image::Image()
+    : data_(),
+      width_(0),
+      height_(0),
+      is_grayscale_(true),
+      is_dithered_grayscale_(false),
+      is_dithered_color_(false) {}
 
 Image::Image(const char *filename) : Image(std::string(filename)) {}
 
 Image::Image(const std::string &filename)
-    : data_(), width_(0), height_(0), is_grayscale_(true) {
+    : data_(),
+      width_(0),
+      height_(0),
+      is_grayscale_(true),
+      is_dithered_grayscale_(false),
+      is_dithered_color_(false) {
   if (filename.compare(filename.size() - 4, filename.size(), ".png") == 0) {
     // filename expected to be .png
     std::cout << "INFO: PNG filename extension detected, decoding..."
@@ -115,24 +141,109 @@ bool Image::SaveAsPNG(const std::string &filename, bool overwrite) {
 
   // set image information
   if (is_grayscale_) {
-    png_set_IHDR(png_ptr, png_info_ptr, width_, height_, 8, PNG_COLOR_TYPE_GRAY,
-                 PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT,
-                 PNG_FILTER_TYPE_DEFAULT);
+    if (is_dithered_grayscale_) {
+      png_set_IHDR(png_ptr, png_info_ptr, width_, height_, 1,
+                   PNG_COLOR_TYPE_PALETTE, PNG_INTERLACE_NONE,
+                   PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+      png_set_PLTE(png_ptr, png_info_ptr, dither_bw_palette_.data(),
+                   dither_bw_palette_.size());
+    } else {
+      png_set_IHDR(png_ptr, png_info_ptr, width_, height_, 8,
+                   PNG_COLOR_TYPE_GRAY, PNG_INTERLACE_NONE,
+                   PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+    }
   } else {
-    png_set_IHDR(png_ptr, png_info_ptr, width_, height_, 8,
-                 PNG_COLOR_TYPE_RGB_ALPHA, PNG_INTERLACE_NONE,
-                 PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+    if (is_dithered_color_) {
+      png_set_IHDR(png_ptr, png_info_ptr, width_, height_, 4,
+                   PNG_COLOR_TYPE_PALETTE, PNG_INTERLACE_NONE,
+                   PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+      png_set_PLTE(png_ptr, png_info_ptr, dither_color_palette_.data(),
+                   dither_color_palette_.size());
+    } else {
+      png_set_IHDR(png_ptr, png_info_ptr, width_, height_, 8,
+                   PNG_COLOR_TYPE_RGB_ALPHA, PNG_INTERLACE_NONE,
+                   PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+    }
   }
 
   // write png info
   png_write_info(png_ptr, png_info_ptr);
 
   // write rows of image data
-  for (unsigned int y = 0; y < height_; ++y) {
-    if (is_grayscale_) {
-      png_write_row(png_ptr, &data_.at(y * width_));
-    } else {
-      png_write_row(png_ptr, &data_.at(y * width_ * 4));
+  if (is_dithered_grayscale_) {
+    // using 1-bit palette in 1-bit color depth
+    std::vector<unsigned char> row;
+    unsigned char temp;
+    unsigned int bidx;
+    for (unsigned int y = 0; y < height_; ++y) {
+      row.clear();
+      temp = 0;
+      bidx = 0;
+      for (unsigned int x = 0; x < width_; ++x) {
+        if (data_.at(x + y * width_) != 0) {
+          temp |= 0x80 >> bidx;
+        }
+        ++bidx;
+        if (bidx >= 8) {
+          row.push_back(temp);
+          temp = 0;
+          bidx = 0;
+        }
+      }
+      row.push_back(temp);
+      png_write_row(png_ptr, row.data());
+    }
+  } else if (is_dithered_color_) {
+    // using 3-bit palette in 4-bit color depth
+    std::vector<unsigned char> row;
+    unsigned char temp;
+    unsigned int bidx;
+    unsigned char red, green, blue;
+    for (unsigned int y = 0; y < height_; ++y) {
+      row.clear();
+      temp = 0;
+      bidx = 0;
+      for (unsigned int x = 0; x < width_; ++x) {
+        red = data_.at(x * 4 + y * 4 * width_);
+        green = data_.at(x * 4 + y * 4 * width_ + 1);
+        blue = data_.at(x * 4 + y * 4 * width_ + 2);
+        if (red == 0 && green == 0 && blue == 0) {
+          // noop
+        } else if (red != 0 && green != 0 && blue != 0) {
+          temp |= 0x10 >> (bidx * 4);
+        } else if (red != 0 && green == 0 && blue == 0) {
+          temp |= 0x20 >> (bidx * 4);
+        } else if (red == 0 && green != 0 && blue == 0) {
+          temp |= 0x30 >> (bidx * 4);
+        } else if (red == 0 && green == 0 && blue != 0) {
+          temp |= 0x40 >> (bidx * 4);
+        } else if (red != 0 && green != 0 && blue == 0) {
+          temp |= 0x50 >> (bidx * 4);
+        } else if (red != 0 && green == 0 && blue != 0) {
+          temp |= 0x60 >> (bidx * 4);
+        } else if (red == 0 && green != 0 && blue != 0) {
+          temp |= 0x70 >> (bidx * 4);
+        } else {
+          assert(!"Unreachable");
+        }
+        ++bidx;
+        if (bidx >= 2) {
+          bidx = 0;
+          row.push_back(temp);
+          temp = 0;
+        }
+      }
+      row.push_back(temp);
+      png_write_row(png_ptr, row.data());
+    }
+  } else {
+    // using full 8-bit per-channel colors
+    for (unsigned int y = 0; y < height_; ++y) {
+      if (is_grayscale_) {
+        png_write_row(png_ptr, &data_.at(y * width_));
+      } else {
+        png_write_row(png_ptr, &data_.at(y * width_ * 4));
+      }
     }
   }
 
@@ -258,6 +369,7 @@ std::unique_ptr<Image> Image::ToGrayscaleDitheredWithBlueNoise(
               << std::endl;
     return {};
   }
+  grayscale_image->is_dithered_grayscale_ = true;
   auto opencl_handle = GetOpenCLHandle();
   if (!opencl_handle) {
     std::cout
@@ -594,6 +706,7 @@ std::unique_ptr<Image> Image::ToColorDitheredWithBlueNoise(Image *blue_noise) {
 
   std::unique_ptr<Image> result_image =
       std::unique_ptr<Image>(new Image(*this));
+  result_image->is_dithered_color_ = true;
 
   if (!opencl_handle->GetBufferData(kid, output_buffer_id,
                                     result_image->GetSize(),
