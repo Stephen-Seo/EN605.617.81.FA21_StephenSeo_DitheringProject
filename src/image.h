@@ -103,16 +103,16 @@ class Image {
    *
    * \return A std::unique_ptr holding an Image on success, empty otherwise.
    */
-  std::unique_ptr<Image> ToDitheredWithBlueNoise(Image *blue_noise);
+  std::unique_ptr<Image> ToGrayscaleDitheredWithBlueNoise(Image *blue_noise);
 
   /// Returns the Dithering Kernel function as a C string
-  static const char *GetDitheringKernel();
+  static const char *GetGrayscaleDitheringKernel();
 
   /// Returns the OpenCLHandle::Ptr instance
   OpenCLHandle::Ptr GetOpenCLHandle();
 
  private:
-  static const char *opencl_kernel_;
+  static const char *opencl_grayscale_kernel_;
   OpenCLHandle::Ptr opencl_handle_;
   /// Internally holds rgba
   std::vector<uint8_t> data_;

@@ -18,7 +18,7 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  auto output = input.ToDitheredWithBlueNoise(&bluenoise);
+  auto output = input.ToGrayscaleDitheredWithBlueNoise(&bluenoise);
   if (!output || !output->IsValid()) {
     std::cout << "ERROR: output Image is invalid" << std::endl;
     return 1;
