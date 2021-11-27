@@ -883,6 +883,13 @@ std::unique_ptr<Image> Image::ToColorDitheredWithBlueNoise(Image *blue_noise) {
     return {};
   }
 
+  if (this->IsGrayscale()) {
+    std::cout << "ERROR ToColorDitheredWithBlueNoise: current Image is not "
+                 "non-grayscale"
+              << std::endl;
+    return {};
+  }
+
   auto opencl_handle = GetOpenCLHandle();
   if (!opencl_handle) {
     std::cout
