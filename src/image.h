@@ -105,14 +105,29 @@ class Image {
    */
   std::unique_ptr<Image> ToGrayscaleDitheredWithBlueNoise(Image *blue_noise);
 
-  /// Returns the Dithering Kernel function as a C string
+  /*!
+   * \brief Returns a colored dithered version of the current Image.
+   *
+   * Unlike the grayscaled version, this dithers the red, green, and blue
+   * channels. There may be mixed pixels as a result, such as yellow, cyan,
+   * magenta, or white.
+   *
+   * \return A std::unique_ptr holding an Image on success, empty otherwise.
+   */
+  std::unique_ptr<Image> ToColorDitheredWithBlueNoise(Image *blue_noise);
+
+  /// Returns the grayscale Dithering Kernel function as a C string
   static const char *GetGrayscaleDitheringKernel();
+
+  /// Returns the color Dithering Kernel function as a C string
+  static const char *GetColorDitheringKernel();
 
   /// Returns the OpenCLHandle::Ptr instance
   OpenCLHandle::Ptr GetOpenCLHandle();
 
  private:
   static const char *opencl_grayscale_kernel_;
+  static const char *opencl_color_kernel_;
   OpenCLHandle::Ptr opencl_handle_;
   /// Internally holds rgba
   std::vector<uint8_t> data_;
