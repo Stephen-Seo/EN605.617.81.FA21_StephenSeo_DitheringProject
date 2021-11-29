@@ -1,7 +1,9 @@
 #ifndef IGPUP_DITHERING_PROJECT_VIDEO_H_
 #define IGPUP_DITHERING_PROJECT_VIDEO_H_
 
+extern "C" {
 #include <libavcodec/avcodec.h>
+}
 
 #include "image.h"
 

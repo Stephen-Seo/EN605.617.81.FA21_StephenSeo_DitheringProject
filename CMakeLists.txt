@@ -4,6 +4,7 @@ project(EN605.617.81.FA21_StephenSeo_DitheringProject)
 set(Project_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/src/image.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/video.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/src/opencl_handle.cc
 )
 
@@ -25,7 +26,7 @@ find_package(OpenCL REQUIRED)
 find_package(PNG REQUIRED)
 
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(FFMPEG_LIBAVCODEC REQUIRED libavcodec)
+pkg_check_modules(FFMPEG_LIBAVCODEC REQUIRED libavcodec libavformat libavutil)
 
 target_include_directories(DitheringProject PUBLIC
   ${OpenCL_INCLUDE_DIRS}

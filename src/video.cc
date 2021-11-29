@@ -4,9 +4,9 @@
 #include <fstream>
 #include <iostream>
 
-#include <libavcodec/avcodec.h>
-#include <libavcodec/packet.h>
+extern "C" {
 #include <libavformat/avformat.h>
+}
 
 Video::Video(const char *video_filename) : Video(std::string(video_filename)) {}
 
