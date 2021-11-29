@@ -128,6 +128,8 @@ class Image {
   OpenCLHandle::Ptr GetOpenCLHandle();
 
  private:
+  friend class Video;
+
   static const char *opencl_grayscale_kernel_;
   static const char *opencl_color_kernel_;
   static const std::array<png_color, 2> dither_bw_palette_;

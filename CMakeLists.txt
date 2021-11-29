@@ -24,11 +24,16 @@ find_package(OpenCL REQUIRED)
 
 find_package(PNG REQUIRED)
 
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(FFMPEG_LIBAVCODEC REQUIRED libavcodec)
+
 target_include_directories(DitheringProject PUBLIC
   ${OpenCL_INCLUDE_DIRS}
   ${PNG_INCLUDE_DIRS}
+  ${FFMPEG_LIBAVCODEC_INCLUDE_DIRS}
 )
 target_link_libraries(DitheringProject PUBLIC
   ${OpenCL_LIBRARIES}
   ${PNG_LIBRARIES}
+  ${FFMPEG_LIBAVCODEC_LINK_LIBRARIES}
 )
