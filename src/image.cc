@@ -817,6 +817,10 @@ OpenCLHandle::Ptr Image::GetOpenCLHandle() {
 
 void Image::DecodePNG(const std::string &filename) {
   FILE *file = std::fopen(filename.c_str(), "rb");
+  if (!file) {
+    std::cout << "ERROR: Failed to open \"" << filename << '"' << std::endl;
+    return;
+  }
 
   // Check header of file to check if it is actually a png file.
   {

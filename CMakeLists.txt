@@ -26,7 +26,8 @@ find_package(OpenCL REQUIRED)
 find_package(PNG REQUIRED)
 
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(FFMPEG_LIBAVCODEC REQUIRED libavcodec libavformat libavutil)
+pkg_check_modules(FFMPEG_LIBAVCODEC REQUIRED
+    libavcodec libavformat libavutil libswscale)
 
 target_include_directories(DitheringProject PUBLIC
   ${OpenCL_INCLUDE_DIRS}

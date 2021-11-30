@@ -3,6 +3,7 @@
 
 extern "C" {
 #include <libavcodec/avcodec.h>
+#include <libswscale/swscale.h>
 }
 
 #include "image.h"
@@ -17,12 +18,22 @@ class Video {
   explicit Video(const char *video_filename);
   explicit Video(const std::string &video_filename);
 
-  bool DitherGrayscale(const char *output_filename);
-  bool DitherGrayscale(const std::string &output_filename);
+  ~Video();
+
+  bool DitherVideo(const char *output_filename, Image *blue_noise,
+                   bool grayscale = false);
+  bool DitherVideo(const std::string &output_filename, Image *blue_noise,
+                   bool grayscale = false);
 
  private:
-  Image image;
-  std::string input_filename;
+  Image image_;
+  std::string input_filename_;
+  SwsContext *sws_context_;
+  unsigned int frame_count_;
+  unsigned int packet_count_;
+
+  bool HandleDecodingPacket(AVCodecContext *codec_ctx, AVPacket *pkt,
+                            AVFrame *frame, Image *blue_noise, bool grayscale);
 };
 
 #endif

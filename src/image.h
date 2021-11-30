@@ -135,7 +135,7 @@ class Image {
   static const std::array<png_color, 2> dither_bw_palette_;
   static const std::array<png_color, 8> dither_color_palette_;
   OpenCLHandle::Ptr opencl_handle_;
-  /// Internally holds rgba
+  /// Internally holds rgba or grayscale (1 channel)
   std::vector<uint8_t> data_;
   unsigned int width_;
   unsigned int height_;
