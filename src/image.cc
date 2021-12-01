@@ -50,6 +50,7 @@ Image::Image()
       is_dithered_grayscale_(false),
       is_dithered_color_(false),
       is_preserving_blue_noise_offsets_(true) {
+  std::srand(std::time(nullptr));
   GenerateBlueNoiseOffsets();
 }
 
@@ -91,6 +92,7 @@ Image::Image(const std::string &filename)
     return;
   }
 
+  std::srand(std::time(nullptr));
   GenerateBlueNoiseOffsets();
 }
 
@@ -696,10 +698,6 @@ std::unique_ptr<Image> Image::ToColorDitheredWithBlueNoise(Image *blue_noise) {
 
   if (!opencl_handle->HasBuffer(color_kernel_name,
                                 kBufferBlueNoiseOffsetsName)) {
-    if (!is_preserving_blue_noise_offsets_) {
-      GenerateBlueNoiseOffsets();
-    }
-
     if (!opencl_handle->CreateKernelBuffer(
             color_kernel_name, CL_MEM_READ_ONLY,
             sizeof(unsigned int) * blue_noise_offsets_.size(), nullptr,
@@ -711,6 +709,10 @@ std::unique_ptr<Image> Image::ToColorDitheredWithBlueNoise(Image *blue_noise) {
       opencl_handle->CleanupKernel(color_kernel_name);
       return {};
     }
+  }
+
+  if (!is_preserving_blue_noise_offsets_) {
+    GenerateBlueNoiseOffsets();
   }
 
   if (!opencl_handle->SetKernelBufferData(
@@ -1413,12 +1415,11 @@ const std::string &Image::GetColorKernelName() {
 }
 
 void Image::GenerateBlueNoiseOffsets() {
-  std::srand(std::time(nullptr));
-  while (DuplicateBlueNoiseOffsetExists()) {
+  do {
     for (unsigned int i = 0; i < blue_noise_offsets_.size(); ++i) {
       blue_noise_offsets_.at(i) = rand() % kBlueNoiseOffsetMax;
     }
-  }
+  } while (DuplicateBlueNoiseOffsetExists());
 }
 
 bool Image::DuplicateBlueNoiseOffsetExists() const {
