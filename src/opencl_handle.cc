@@ -1,13 +1,14 @@
 #include "opencl_handle.h"
 
+#include <CL/cl.h>
+
 #include <fstream>
 #include <iostream>
 #include <vector>
 
 OpenCLContext::Ptr OpenCLContext::instance_ = {};
 
-OpenCLContext::OpenCLHandle::OpenCLHandle()
-    : opencl_ptr_(), kernels_(), kernel_counter_(0) {}
+OpenCLContext::OpenCLHandle::OpenCLHandle() : opencl_ptr_(), kernels_() {}
 
 OpenCLContext::OpenCLHandle::~OpenCLHandle() {
   CleanupAllKernels();
@@ -23,21 +24,26 @@ bool OpenCLContext::OpenCLHandle::IsValid() const {
   return context->IsValid();
 }
 
-KernelID OpenCLContext::OpenCLHandle::CreateKernelFromSource(
-    const std::string &kernel_fn, const char *kernel_name) {
+bool OpenCLContext::OpenCLHandle::CreateKernelFromSource(
+    const std::string &kernel_fn, const std::string &kernel_name) {
   if (!IsValid()) {
     std::cout << "ERROR: OpenCLContext is not initialized" << std::endl;
-    return 0;
+    return false;
+  } else if (HasKernel(kernel_name)) {
+    std::cout
+        << "ERROR: OpenCLContext already has kernel with given kernel_name \""
+        << kernel_name << '"' << std::endl;
+    return false;
   }
 
   cl_int err_num;
-  KernelInfo kernel_info = {nullptr, nullptr, {}, 0};
+  KernelInfo kernel_info = {nullptr, nullptr, {}};
 
   OpenCLContext::Ptr context_ptr = opencl_ptr_.lock();
   if (!context_ptr) {
     std::cout << "ERROR: OpenCLHandle: OpenCLContext is not initialized"
               << std::endl;
-    return 0;
+    return false;
   }
 
   const char *source_c_str = kernel_fn.c_str();
@@ -46,7 +52,7 @@ KernelID OpenCLContext::OpenCLHandle::CreateKernelFromSource(
   if (err_num != CL_SUCCESS) {
     std::cout << "ERROR: OpenCLHandle: Failed to create program from source"
               << std::endl;
-    return 0;
+    return false;
   }
 
   err_num = clBuildProgram(kernel_info.program_, 0, nullptr, nullptr, nullptr,
@@ -61,49 +67,54 @@ KernelID OpenCLContext::OpenCLHandle::CreateKernelFromSource(
                           build_log.data(), nullptr);
     std::cout << build_log.data();
     clReleaseProgram(kernel_info.program_);
-    return 0;
+    return false;
   }
 
   kernel_info.kernel_ =
-      clCreateKernel(kernel_info.program_, kernel_name, &err_num);
+      clCreateKernel(kernel_info.program_, kernel_name.c_str(), &err_num);
   if (err_num != CL_SUCCESS) {
     std::cout << "ERROR: OpenCLHandle: Failed to create kernel object from "
               << "source" << std::endl;
     clReleaseProgram(kernel_info.program_);
-    return 0;
+    return false;
   }
 
-  KernelID id;
-  do {
-    id = ++kernel_counter_;
-  } while (id == 0 || kernels_.find(id) != kernels_.end());
+  kernels_.insert({kernel_name, kernel_info});
 
-  kernels_.insert({id, kernel_info});
-
-  return id;
+  return true;
 }
 
-KernelID OpenCLContext::OpenCLHandle::CreateKernelFromSource(
-    const char *kernel_fn, const char *kernel_name) {
+bool OpenCLContext::OpenCLHandle::CreateKernelFromSource(
+    const char *kernel_fn, const std::string &kernel_name) {
   if (!IsValid()) {
     std::cout << "ERROR: OpenCLContext is not initialized" << std::endl;
-    return 0;
+    return false;
+  } else if (HasKernel(kernel_name)) {
+    std::cout
+        << "ERROR: OpenCLContext already has kernel with given kernel_name \""
+        << kernel_name << '"' << std::endl;
+    return false;
   }
   return CreateKernelFromSource(std::string(kernel_fn), kernel_name);
 }
 
-KernelID OpenCLContext::OpenCLHandle::CreateKernelFromFile(
-    const std::string &filename, const char *kernel_name) {
+bool OpenCLContext::OpenCLHandle::CreateKernelFromFile(
+    const std::string &filename, const std::string &kernel_name) {
   if (!IsValid()) {
     std::cout << "ERROR: OpenCLContext is not initialized" << std::endl;
-    return 0;
+    return false;
+  } else if (HasKernel(kernel_name)) {
+    std::cout
+        << "ERROR: OpenCLContext already has kernel with given kernel_name \""
+        << kernel_name << '"' << std::endl;
+    return false;
   }
   std::string source;
   {
     char buf[1024];
     std::ifstream ifs(filename);
     if (!ifs.is_open()) {
-      return 0;
+      return false;
     }
 
     while (ifs.good()) {
@@ -112,38 +123,52 @@ KernelID OpenCLContext::OpenCLHandle::CreateKernelFromFile(
     }
 
     if (source.empty()) {
-      return 0;
+      return false;
     }
   }
   return CreateKernelFromSource(source, kernel_name);
 }
 
-KernelID OpenCLContext::OpenCLHandle::CreateKernelFromFile(
-    const char *filename, const char *kernel_name) {
+bool OpenCLContext::OpenCLHandle::CreateKernelFromFile(
+    const char *filename, const std::string &kernel_name) {
   if (!IsValid()) {
     std::cout << "ERROR: OpenCLContext is not initialized" << std::endl;
-    return 0;
+    return false;
+  } else if (HasKernel(kernel_name)) {
+    std::cout
+        << "ERROR: OpenCLContext already has kernel with given kernel_name \""
+        << kernel_name << '"' << std::endl;
+    return false;
   }
   return CreateKernelFromFile(std::string(filename), kernel_name);
 }
 
-BufferID OpenCLContext::OpenCLHandle::CreateKernelBuffer(KernelID kernel_id,
-                                                         cl_mem_flags flags,
-                                                         std::size_t buf_size,
-                                                         void *host_ptr) {
+bool OpenCLContext::OpenCLHandle::CreateKernelBuffer(
+    const std::string &kernel_name, cl_mem_flags flags, std::size_t buf_size,
+    void *host_ptr, const std::string &buffer_name) {
   if (!IsValid()) {
     std::cout << "ERROR: OpenCLHandle::CreateKernelBuffer: OpenCLContext is "
                  "not initialized"
               << std::endl;
-    return 0;
+    return false;
   }
 
-  auto kernel_info_iter = kernels_.find(kernel_id);
+  auto kernel_info_iter = kernels_.find(kernel_name);
   if (kernel_info_iter == kernels_.end()) {
-    std::cout
-        << "ERROR: OpenCLHandle::CreateKernelBuffer: Got Invalid kernel_id"
-        << std::endl;
-    return 0;
+    std::cout << "ERROR: OpenCLHandle::CreateKernelBuffer: Given kernel \""
+              << kernel_name << "\" doesn't exist" << std::endl;
+    return false;
+  }
+
+  auto *buffer_map = &kernel_info_iter->second.mem_objects_;
+  {
+    auto buffer_info_iter = buffer_map->find(buffer_name);
+    if (buffer_info_iter != buffer_map->end()) {
+      std::cout
+          << "ERROR: OpenCLHandle::CreateKernelBuffer: Buffer with name \""
+          << buffer_name << "\" already exists" << std::endl;
+      return false;
+    }
   }
 
   auto opencl_context = opencl_ptr_.lock();
@@ -151,7 +176,7 @@ BufferID OpenCLContext::OpenCLHandle::CreateKernelBuffer(KernelID kernel_id,
     std::cout << "ERROR: OpenCLHandle::CreateKernelBuffer: OpenCLContext is "
                  "not initialized"
               << std::endl;
-    return 0;
+    return false;
   }
 
   cl_int err_num;
@@ -163,39 +188,33 @@ BufferID OpenCLContext::OpenCLHandle::CreateKernelBuffer(KernelID kernel_id,
     std::cout
         << "ERROR: OpenCLHandle::CreateKernelBuffer: Failed to create buffer"
         << std::endl;
-    return 0;
+    return false;
   }
 
-  BufferID buffer_id;
-  auto *buffer_map = &kernel_info_iter->second.mem_objects_;
-  do {
-    buffer_id = ++kernel_info_iter->second.buffer_id_counter_;
-  } while (buffer_id == 0 || buffer_map->find(buffer_id) != buffer_map->end());
+  buffer_map->insert({buffer_name, {mem_object, buf_size}});
 
-  buffer_map->insert({buffer_id, {mem_object, buf_size}});
-
-  return buffer_id;
+  return true;
 }
 
-bool OpenCLContext::OpenCLHandle::SetKernelBufferData(KernelID kernel_id,
-                                                      BufferID buffer_id,
-                                                      std::size_t data_size,
-                                                      void *data_ptr) {
+bool OpenCLContext::OpenCLHandle::SetKernelBufferData(
+    const std::string &kernel_name, const std::string &buffer_name,
+    std::size_t data_size, void *data_ptr) {
   if (!IsValid()) {
     std::cout << "ERROR: OpenCLContext is not initialized" << std::endl;
     return false;
   }
-  auto kernel_info_iter = kernels_.find(kernel_id);
+  auto kernel_info_iter = kernels_.find(kernel_name);
   if (kernel_info_iter == kernels_.end()) {
-    std::cout << "ERROR: OpenCLHandle::SetKernelBufferData: Invalid KernelID"
-              << std::endl;
+    std::cout << "ERROR: OpenCLHandle::SetKernelBufferData: Kernel with name \""
+              << kernel_name << "\" doesn't exist" << std::endl;
     return false;
   }
 
-  auto buffer_info_iter = kernel_info_iter->second.mem_objects_.find(buffer_id);
-  if (buffer_info_iter == kernel_info_iter->second.mem_objects_.end()) {
-    std::cout << "ERROR: OpenCLHandle::SetKernelBufferData: Invalid BufferID"
-              << std::endl;
+  auto *buffer_map = &kernel_info_iter->second.mem_objects_;
+  auto buffer_info_iter = buffer_map->find(buffer_name);
+  if (buffer_info_iter == buffer_map->end()) {
+    std::cout << "ERROR: OpenCLHandle::SetKernelBufferData: Buffer with name \""
+              << buffer_name << "\" doesn't exist" << std::endl;
     return false;
   }
 
@@ -233,27 +252,25 @@ bool OpenCLContext::OpenCLHandle::SetKernelBufferData(KernelID kernel_id,
   return true;
 }
 
-bool OpenCLContext::OpenCLHandle::AssignKernelBuffer(KernelID kernel_id,
-                                                     unsigned int idx,
-                                                     BufferID buffer_id) {
+bool OpenCLContext::OpenCLHandle::AssignKernelBuffer(
+    const std::string &kernel_name, unsigned int idx,
+    const std::string &buffer_name) {
   if (!IsValid()) {
     std::cout << "ERROR: OpenCLContext is not initialized" << std::endl;
     return false;
   }
-  auto kernel_iter = kernels_.find(kernel_id);
+  auto kernel_iter = kernels_.find(kernel_name);
   if (kernel_iter == kernels_.end()) {
-    std::cout
-        << "ERROR: OpenCLHandle::AssignKernelBuffer: no kernel with given id"
-        << std::endl;
+    std::cout << "ERROR: OpenCLHandle::AssignKernelBuffer: Kernel with name \""
+              << kernel_name << "\" doesn't exist" << std::endl;
     return false;
   }
 
   auto *buffer_map = &kernel_iter->second.mem_objects_;
-  auto buffer_info_iter = buffer_map->find(buffer_id);
+  auto buffer_info_iter = buffer_map->find(buffer_name);
   if (buffer_info_iter == buffer_map->end()) {
-    std::cout << "ERROR: OpenCLHandle::AssignKernelBuffer: no buffer in "
-                 "kernel_info with given id"
-              << std::endl;
+    std::cout << "ERROR: OpenCLHandle::AssignKernelBuffer: buffer with name \""
+              << buffer_name << "\" doesn't exist" << std::endl;
     return false;
   }
 
@@ -271,19 +288,18 @@ bool OpenCLContext::OpenCLHandle::AssignKernelBuffer(KernelID kernel_id,
   return true;
 }
 
-bool OpenCLContext::OpenCLHandle::AssignKernelArgument(KernelID kernel_id,
-                                                       unsigned int idx,
-                                                       std::size_t data_size,
-                                                       const void *data_ptr) {
+bool OpenCLContext::OpenCLHandle::AssignKernelArgument(
+    const std::string &kernel_name, unsigned int idx, std::size_t data_size,
+    const void *data_ptr) {
   if (!IsValid()) {
     std::cout << "ERROR: OpenCLContext is not initialized" << std::endl;
     return false;
   }
-  auto iter = kernels_.find(kernel_id);
+  auto iter = kernels_.find(kernel_name);
   if (iter == kernels_.end()) {
     std::cout
-        << "ERROR: OpenCLHandle::AssignKernelArgument: no kernel with given id"
-        << std::endl;
+        << "ERROR: OpenCLHandle::AssignKernelArgument: Kernel with name \""
+        << kernel_name << "\" doesn't exist" << std::endl;
     return false;
   }
 
@@ -309,7 +325,7 @@ bool OpenCLContext::OpenCLHandle::AssignKernelArgument(KernelID kernel_id,
 }
 
 std::array<std::size_t, 3> OpenCLContext::OpenCLHandle::GetGlobalWorkSize(
-    KernelID kernel_id) {
+    const std::string &kernel_name) {
   if (!IsValid()) {
     std::cout << "ERROR: OpenCLContext is not initialized" << std::endl;
     return {0, 0, 0};
@@ -324,10 +340,10 @@ std::array<std::size_t, 3> OpenCLContext::OpenCLHandle::GetGlobalWorkSize(
     return sizes;
   }
 
-  auto kernel_iter = kernels_.find(kernel_id);
+  auto kernel_iter = kernels_.find(kernel_name);
   if (kernel_iter == kernels_.end()) {
-    std::cout << "ERROR: OpenCLHandle::GetGlobalWorkSize: Invalid kernel_id"
-              << std::endl;
+    std::cout << "ERROR: OpenCLHandle::GetGlobalWorkSize: Kernel with name \""
+              << kernel_name << "\" doesn't exist" << std::endl;
     return sizes;
   }
 
@@ -345,7 +361,8 @@ std::array<std::size_t, 3> OpenCLContext::OpenCLHandle::GetGlobalWorkSize(
   return sizes;
 }
 
-std::size_t OpenCLContext::OpenCLHandle::GetWorkGroupSize(KernelID kernel_id) {
+std::size_t OpenCLContext::OpenCLHandle::GetWorkGroupSize(
+    const std::string &kernel_name) {
   if (!IsValid()) {
     std::cout << "ERROR: OpenCLContext is not initialized" << std::endl;
     return 0;
@@ -358,10 +375,10 @@ std::size_t OpenCLContext::OpenCLHandle::GetWorkGroupSize(KernelID kernel_id) {
     return 0;
   }
 
-  auto kernel_iter = kernels_.find(kernel_id);
+  auto kernel_iter = kernels_.find(kernel_name);
   if (kernel_iter == kernels_.end()) {
-    std::cout << "ERROR: OpenCLHandle::GetWorkGroupSize: Invalid kernel_id"
-              << std::endl;
+    std::cout << "ERROR: OpenCLHandle::GetWorkGroupSize: Kernel with name \""
+              << kernel_name << "\" doesn't exist" << std::endl;
     return 0;
   }
 
@@ -404,7 +421,7 @@ std::size_t OpenCLContext::OpenCLHandle::GetDeviceMaxWorkGroupSize() {
   return value;
 }
 
-bool OpenCLContext::OpenCLHandle::ExecuteKernel(KernelID kernel_id,
+bool OpenCLContext::OpenCLHandle::ExecuteKernel(const std::string &kernel_name,
                                                 std::size_t global_work_size,
                                                 std::size_t local_work_size,
                                                 bool is_blocking) {
@@ -420,10 +437,10 @@ bool OpenCLContext::OpenCLHandle::ExecuteKernel(KernelID kernel_id,
     return false;
   }
 
-  auto kernel_iter = kernels_.find(kernel_id);
+  auto kernel_iter = kernels_.find(kernel_name);
   if (kernel_iter == kernels_.end()) {
-    std::cout << "ERROR: OpenCLHandle::ExecuteKernel: Invalid kernel_id"
-              << std::endl;
+    std::cout << "ERROR: OpenCLHandle::ExecuteKernel: Kernel with name \""
+              << kernel_name << "\" doesn't exist" << std::endl;
     return false;
   }
 
@@ -452,7 +469,7 @@ bool OpenCLContext::OpenCLHandle::ExecuteKernel(KernelID kernel_id,
 }
 
 bool OpenCLContext::OpenCLHandle::ExecuteKernel2D(
-    KernelID kernel_id, std::size_t global_work_size_0,
+    const std::string &kernel_name, std::size_t global_work_size_0,
     std::size_t global_work_size_1, std::size_t local_work_size_0,
     std::size_t local_work_size_1, bool is_blocking) {
   if (!IsValid()) {
@@ -467,10 +484,10 @@ bool OpenCLContext::OpenCLHandle::ExecuteKernel2D(
     return false;
   }
 
-  auto kernel_iter = kernels_.find(kernel_id);
+  auto kernel_iter = kernels_.find(kernel_name);
   if (kernel_iter == kernels_.end()) {
-    std::cout << "ERROR: OpenCLHandle::ExecuteKernel2D: Invalid kernel_id"
-              << std::endl;
+    std::cout << "ERROR: OpenCLHandle::ExecuteKernel2D: Kernel with name \""
+              << kernel_name << "\" doesn't exist" << std::endl;
     return false;
   }
 
@@ -503,8 +520,8 @@ bool OpenCLContext::OpenCLHandle::ExecuteKernel2D(
   return true;
 }
 
-bool OpenCLContext::OpenCLHandle::GetBufferData(KernelID kernel_id,
-                                                BufferID buffer_id,
+bool OpenCLContext::OpenCLHandle::GetBufferData(const std::string &kernel_name,
+                                                const std::string &buffer_name,
                                                 std::size_t out_size,
                                                 void *data_out) {
   if (!IsValid()) {
@@ -517,17 +534,17 @@ bool OpenCLContext::OpenCLHandle::GetBufferData(KernelID kernel_id,
     std::cout << "ERROR: OpenCLContext is not initialized" << std::endl;
   }
 
-  auto kernel_iter = kernels_.find(kernel_id);
+  auto kernel_iter = kernels_.find(kernel_name);
   if (kernel_iter == kernels_.end()) {
-    std::cout << "ERROR: OpenCLHandle::GetBufferData: Invalid kernel_id"
-              << std::endl;
+    std::cout << "ERROR: OpenCLHandle::GetBufferData: Kernel with name \""
+              << kernel_name << "\" doesn't exist" << std::endl;
     return false;
   }
 
-  auto buffer_iter = kernel_iter->second.mem_objects_.find(buffer_id);
+  auto buffer_iter = kernel_iter->second.mem_objects_.find(buffer_name);
   if (buffer_iter == kernel_iter->second.mem_objects_.end()) {
-    std::cout << "ERROR: OpenCLHandle::GetBufferData: Invalid buffer_id"
-              << std::endl;
+    std::cout << "ERROR: OpenCLHandle::GetBufferData: Buffer with name \""
+              << buffer_name << "\" doesn't exist" << std::endl;
     return false;
   }
 
@@ -558,23 +575,71 @@ bool OpenCLContext::OpenCLHandle::GetBufferData(KernelID kernel_id,
   return true;
 }
 
-bool OpenCLContext::OpenCLHandle::CleanupBuffer(KernelID kernel_id,
-                                                BufferID buffer_id) {
+bool OpenCLContext::OpenCLHandle::HasKernel(
+    const std::string &kernel_name) const {
+  return kernels_.find(kernel_name) != kernels_.end();
+}
+
+bool OpenCLContext::OpenCLHandle::HasBuffer(
+    const std::string &kernel_name, const std::string &buffer_name) const {
+  auto kernel_iter = kernels_.find(kernel_name);
+  if (kernel_iter == kernels_.end()) {
+    return false;
+  }
+
+  auto *buffer_map = &kernel_iter->second.mem_objects_;
+  auto buffer_iter = buffer_map->find(buffer_name);
+  if (buffer_iter == buffer_map->end()) {
+    return false;
+  }
+
+  return true;
+}
+
+std::size_t OpenCLContext::OpenCLHandle::GetBufferSize(
+    const std::string &kernel_name, const std::string &buffer_name) const {
+  auto kernel_iter = kernels_.find(kernel_name);
+  if (kernel_iter == kernels_.end()) {
+    return 0;
+  }
+
+  auto *buffer_map = &kernel_iter->second.mem_objects_;
+  auto buffer_iter = buffer_map->find(buffer_name);
+  if (buffer_iter == buffer_map->end()) {
+    return 0;
+  }
+
+  std::size_t size = 0;
+
+  cl_int err = clGetMemObjectInfo(buffer_iter->second.mem, CL_MEM_SIZE,
+                                  sizeof(std::size_t), &size, nullptr);
+  if (err != CL_SUCCESS) {
+    std::cout << "ERROR: Failed to query size of device buffer \""
+              << buffer_name << "\" with kernel \"" << kernel_name << '"'
+              << std::endl;
+    return 0;
+  }
+
+  return size;
+}
+
+bool OpenCLContext::OpenCLHandle::CleanupBuffer(
+    const std::string &kernel_name, const std::string &buffer_name) {
   if (!IsValid()) {
     std::cout << "ERROR: OpenCLContext is not initialized" << std::endl;
     return false;
   }
-  auto kernel_iter = kernels_.find(kernel_id);
+  auto kernel_iter = kernels_.find(kernel_name);
   if (kernel_iter == kernels_.end()) {
-    std::cout << "ERROR: OpenCLHandle::CleanupBuffer: Invalid kernel_id"
-              << std::endl;
+    std::cout << "ERROR: OpenCLHandle::CleanupBuffer: Kernel with name \""
+              << kernel_name << "\" doesn't exist" << std::endl;
     return false;
   }
 
-  auto buffer_iter = kernel_iter->second.mem_objects_.find(buffer_id);
+  auto buffer_iter = kernel_iter->second.mem_objects_.find(buffer_name);
   if (buffer_iter == kernel_iter->second.mem_objects_.end()) {
-    std::cout << "ERROR: OpenCLHandle::CleanupBuffer: Invalid buffer_id"
-              << std::endl;
+    std::cout << "ERROR: OpenCLHandle::CleanupBuffer: Buffer with name \""
+              << buffer_name << "\" doesn't exist" << std::endl;
     return false;
   }
 
@@ -584,13 +649,16 @@ bool OpenCLContext::OpenCLHandle::CleanupBuffer(KernelID kernel_id,
   return true;
 }
 
-bool OpenCLContext::OpenCLHandle::CleanupKernel(KernelID id) {
+bool OpenCLContext::OpenCLHandle::CleanupKernel(
+    const std::string &kernel_name) {
   if (!IsValid()) {
     std::cout << "ERROR: OpenCLContext is not initialized" << std::endl;
     return false;
   }
-  auto iter = kernels_.find(id);
+  auto iter = kernels_.find(kernel_name);
   if (iter == kernels_.end()) {
+    std::cout << "WARNING CleanupKernel: Kernel with name \"" << kernel_name
+              << "\" doesn't exist" << std::endl;
     return false;
   }
 

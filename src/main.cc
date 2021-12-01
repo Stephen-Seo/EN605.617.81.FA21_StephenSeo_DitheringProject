@@ -10,7 +10,7 @@ int main(int argc, char **argv) {
     return 1;
   }
   Video video("input.mp4");
-  if (!video.DitherVideo("output.mp4", &blue_noise)) {
+  if (!video.DitherVideo("output.mp4", &blue_noise, false)) {
     std::cout << "ERROR: Failed to dither video" << std::endl;
     return 1;
   }

@@ -8,15 +8,29 @@
 #include <fstream>
 #include <iostream>
 
-const char *Image::opencl_grayscale_kernel_ = nullptr;
-const char *Image::opencl_color_kernel_ = nullptr;
+#define IGPUP_PROJECT_GRAYSCALE_KERNEL_NAME_ "GrayscaleDither"
+#define IGPUP_PROJECT_COLOR_KERNEL_NAME_ "ColorDither"
 
-const std::array<png_color, 2> Image::dither_bw_palette_ = {
+const char *Image::kOpenCLGrayscaleKernel = nullptr;
+const char *Image::kOpenCLColorKernel = nullptr;
+
+const std::string Image::kBufferInputName = "DitherBufferInput";
+const std::string Image::kBufferOutputName = "DitherBufferOutput";
+const std::string Image::kBufferBlueNoiseName = "DitherBufferBlueNoise";
+const std::string Image::kBufferBlueNoiseOffsetsName =
+    "DitherBufferBlueNoiseOffsets";
+
+const std::string Image::kGrayscaleKernelName =
+    IGPUP_PROJECT_GRAYSCALE_KERNEL_NAME_;
+const std::string Image::kColorKernelName = IGPUP_PROJECT_COLOR_KERNEL_NAME_;
+const std::string Image::kEmptyString = {};
+
+const std::array<png_color, 2> Image::kDitherBWPalette = {
     png_color{0, 0, 0},       // black
     png_color{255, 255, 255}  // white
 };
 
-const std::array<png_color, 8> Image::dither_color_palette_ = {
+const std::array<png_color, 8> Image::kDitherColorPalette = {
     png_color{0, 0, 0},        // black
     png_color{255, 255, 255},  // white
     png_color{255, 0, 0},      // red
@@ -28,22 +42,28 @@ const std::array<png_color, 8> Image::dither_color_palette_ = {
 };
 
 Image::Image()
-    : data_(),
+    : blue_noise_offsets_{0, 0, 0},
+      data_(),
       width_(0),
       height_(0),
       is_grayscale_(true),
       is_dithered_grayscale_(false),
-      is_dithered_color_(false) {}
+      is_dithered_color_(false),
+      is_preserving_blue_noise_offsets_(true) {
+  GenerateBlueNoiseOffsets();
+}
 
 Image::Image(const char *filename) : Image(std::string(filename)) {}
 
 Image::Image(const std::string &filename)
-    : data_(),
+    : blue_noise_offsets_{0, 0, 0},
+      data_(),
       width_(0),
       height_(0),
       is_grayscale_(true),
       is_dithered_grayscale_(false),
-      is_dithered_color_(false) {
+      is_dithered_color_(false),
+      is_preserving_blue_noise_offsets_(true) {
   if (filename.compare(filename.size() - 4, filename.size(), ".png") == 0) {
     // filename expected to be .png
     std::cout << "INFO: PNG filename extension detected, decoding..."
@@ -66,6 +86,8 @@ Image::Image(const std::string &filename)
     std::cout << "ERROR: Unknown filename extension" << std::endl;
     return;
   }
+
+  GenerateBlueNoiseOffsets();
 }
 
 bool Image::IsValid() const {
@@ -145,8 +167,8 @@ bool Image::SaveAsPNG(const std::string &filename, bool overwrite) {
       png_set_IHDR(png_ptr, png_info_ptr, width_, height_, 1,
                    PNG_COLOR_TYPE_PALETTE, PNG_INTERLACE_NONE,
                    PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
-      png_set_PLTE(png_ptr, png_info_ptr, dither_bw_palette_.data(),
-                   dither_bw_palette_.size());
+      png_set_PLTE(png_ptr, png_info_ptr, kDitherBWPalette.data(),
+                   kDitherBWPalette.size());
     } else {
       png_set_IHDR(png_ptr, png_info_ptr, width_, height_, 8,
                    PNG_COLOR_TYPE_GRAY, PNG_INTERLACE_NONE,
@@ -157,8 +179,8 @@ bool Image::SaveAsPNG(const std::string &filename, bool overwrite) {
       png_set_IHDR(png_ptr, png_info_ptr, width_, height_, 4,
                    PNG_COLOR_TYPE_PALETTE, PNG_INTERLACE_NONE,
                    PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
-      png_set_PLTE(png_ptr, png_info_ptr, dither_color_palette_.data(),
-                   dither_color_palette_.size());
+      png_set_PLTE(png_ptr, png_info_ptr, kDitherColorPalette.data(),
+                   kDitherColorPalette.size());
     } else {
       png_set_IHDR(png_ptr, png_info_ptr, width_, height_, 8,
                    PNG_COLOR_TYPE_RGB_ALPHA, PNG_INTERLACE_NONE,
@@ -378,126 +400,158 @@ std::unique_ptr<Image> Image::ToGrayscaleDitheredWithBlueNoise(
     return {};
   }
 
+  // first check if existing kernel/buffers can be used
+  if (opencl_handle->HasKernel(kGrayscaleKernelName) &&
+      !VerifyOpenCLBuffers(
+          kGrayscaleKernelName,
+          {kBufferInputName, kBufferOutputName, kBufferBlueNoiseName},
+          grayscale_image.get(), blue_noise)) {
+    opencl_handle->CleanupKernel(kGrayscaleKernelName);
+  }
+
   // set up kernel and buffers
-  auto kid = opencl_handle->CreateKernelFromSource(
-      GetGrayscaleDitheringKernel(), "Dither");
-  if (kid == 0) {
-    std::cout << "ERROR ToGrayscaleDitheredWithBlueNoise: Failed to create "
-                 "OpenCL Kernel"
+  const std::string &grayscale_kernel_name = GetGrayscaleKernelName();
+  if (grayscale_kernel_name.empty() ||
+      !opencl_handle->HasKernel(grayscale_kernel_name)) {
+    std::cout << "ERROR ToGrayscaleDitheredWithBlueNoise: Failed to init kernel"
               << std::endl;
-    opencl_handle->CleanupAllKernels();
     return {};
   }
 
-  auto input_buffer_id = opencl_handle->CreateKernelBuffer(
-      kid, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-      grayscale_image->data_.size(), grayscale_image->data_.data());
-  if (input_buffer_id == 0) {
-    std::cout
-        << "ERROR ToGrayscaleDitheredWithBlueNoise: Failed to set input buffer"
-        << std::endl;
-    opencl_handle->CleanupAllKernels();
+  if (!opencl_handle->HasBuffer(grayscale_kernel_name, kBufferInputName)) {
+    if (!opencl_handle->CreateKernelBuffer(
+            grayscale_kernel_name, CL_MEM_READ_ONLY,
+            grayscale_image->data_.size(), nullptr, kBufferInputName)) {
+      std::cout << "ERROR ToGrayscaleDitheredWithBlueNoise: Failed to alloc "
+                   "input buffer"
+                << std::endl;
+      opencl_handle->CleanupKernel(grayscale_kernel_name);
+      return {};
+    }
+  }
+
+  if (!opencl_handle->SetKernelBufferData(
+          grayscale_kernel_name, kBufferInputName,
+          grayscale_image->data_.size(), grayscale_image->data_.data())) {
+    std::cout << "ERROR ToGrayscaleDitheredWithBlueNoise: Failed to init "
+                 "input buffer"
+              << std::endl;
+    opencl_handle->CleanupKernel(grayscale_kernel_name);
     return {};
   }
 
-  auto output_buffer_id = opencl_handle->CreateKernelBuffer(
-      kid, CL_MEM_WRITE_ONLY, grayscale_image->data_.size(), nullptr);
-  if (output_buffer_id == 0) {
-    std::cout
-        << "ERROR ToGrayscaleDitheredWithBlueNoise: Failed to set output buffer"
-        << std::endl;
-    opencl_handle->CleanupAllKernels();
-    return {};
+  if (!opencl_handle->HasBuffer(grayscale_kernel_name, kBufferOutputName)) {
+    if (!opencl_handle->CreateKernelBuffer(
+            grayscale_kernel_name, CL_MEM_WRITE_ONLY,
+            grayscale_image->data_.size(), nullptr, kBufferOutputName)) {
+      std::cout << "ERROR ToGrayscaleDitheredWithBlueNoise: Failed to set "
+                   "output buffer"
+                << std::endl;
+      opencl_handle->CleanupKernel(grayscale_kernel_name);
+      return {};
+    }
   }
 
-  auto blue_noise_buffer_id = opencl_handle->CreateKernelBuffer(
-      kid, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, blue_noise->data_.size(),
-      blue_noise->data_.data());
-  if (blue_noise_buffer_id == 0) {
-    std::cout << "ERROR ToGrayscaleDitheredWithBlueNoise: Failed to set "
+  if (!opencl_handle->HasBuffer(grayscale_kernel_name, kBufferBlueNoiseName)) {
+    if (!opencl_handle->CreateKernelBuffer(
+            grayscale_kernel_name, CL_MEM_READ_ONLY, blue_noise->data_.size(),
+            nullptr, kBufferBlueNoiseName)) {
+      std::cout << "ERROR ToGrayscaleDitheredWithBlueNoise: Failed to alloc "
+                   "blue-noise buffer"
+                << std::endl;
+      opencl_handle->CleanupKernel(grayscale_kernel_name);
+      return {};
+    }
+  }
+
+  if (!opencl_handle->SetKernelBufferData(
+          grayscale_kernel_name, kBufferBlueNoiseName, blue_noise->data_.size(),
+          blue_noise->data_.data())) {
+    std::cout << "ERROR ToGrayscaleDitheredWithBlueNoise: Failed to init "
                  "blue-noise buffer"
               << std::endl;
-    opencl_handle->CleanupAllKernels();
+    opencl_handle->CleanupKernel(grayscale_kernel_name);
     return {};
   }
 
   // assign buffers/data to kernel parameters
-  if (!opencl_handle->AssignKernelBuffer(kid, 0, input_buffer_id)) {
+  if (!opencl_handle->AssignKernelBuffer(grayscale_kernel_name, 0,
+                                         kBufferInputName)) {
     std::cout
         << "ERROR ToGrayscaleDitheredWithBlueNoise: Failed to set parameter 0"
         << std::endl;
-    opencl_handle->CleanupAllKernels();
+    opencl_handle->CleanupKernel(grayscale_kernel_name);
     return {};
   }
-  if (!opencl_handle->AssignKernelBuffer(kid, 1, blue_noise_buffer_id)) {
+  if (!opencl_handle->AssignKernelBuffer(grayscale_kernel_name, 1,
+                                         kBufferBlueNoiseName)) {
     std::cout
         << "ERROR ToGrayscaleDitheredWithBlueNoise: Failed to set parameter 1"
         << std::endl;
-    opencl_handle->CleanupAllKernels();
+    opencl_handle->CleanupKernel(grayscale_kernel_name);
     return {};
   }
-  if (!opencl_handle->AssignKernelBuffer(kid, 2, output_buffer_id)) {
+  if (!opencl_handle->AssignKernelBuffer(grayscale_kernel_name, 2,
+                                         kBufferOutputName)) {
     std::cout
         << "ERROR ToGrayscaleDitheredWithBlueNoise: Failed to set parameter 2"
         << std::endl;
-    opencl_handle->CleanupAllKernels();
+    opencl_handle->CleanupKernel(grayscale_kernel_name);
     return {};
   }
   unsigned int width = grayscale_image->GetWidth();
-  if (!opencl_handle->AssignKernelArgument(kid, 3, sizeof(unsigned int),
-                                           &width)) {
+  if (!opencl_handle->AssignKernelArgument(grayscale_kernel_name, 3,
+                                           sizeof(unsigned int), &width)) {
     std::cout
         << "ERROR ToGrayscaleDitheredWithBlueNoise: Failed to set parameter 3"
         << std::endl;
-    opencl_handle->CleanupAllKernels();
+    opencl_handle->CleanupKernel(grayscale_kernel_name);
     return {};
   }
   unsigned int height = grayscale_image->GetHeight();
-  if (!opencl_handle->AssignKernelArgument(kid, 4, sizeof(unsigned int),
-                                           &height)) {
+  if (!opencl_handle->AssignKernelArgument(grayscale_kernel_name, 4,
+                                           sizeof(unsigned int), &height)) {
     std::cout
         << "ERROR ToGrayscaleDitheredWithBlueNoise: Failed to set parameter 4"
         << std::endl;
-    opencl_handle->CleanupAllKernels();
+    opencl_handle->CleanupKernel(grayscale_kernel_name);
     return {};
   }
   unsigned int blue_noise_width = blue_noise->GetWidth();
-  if (!opencl_handle->AssignKernelArgument(kid, 5, sizeof(unsigned int),
-                                           &blue_noise_width)) {
+  if (!opencl_handle->AssignKernelArgument(
+          grayscale_kernel_name, 5, sizeof(unsigned int), &blue_noise_width)) {
     std::cout
         << "ERROR ToGrayscaleDitheredWithBlueNoise: Failed to set parameter 5"
         << std::endl;
-    opencl_handle->CleanupAllKernels();
+    opencl_handle->CleanupKernel(grayscale_kernel_name);
     return {};
   }
   unsigned int blue_noise_height = blue_noise->GetHeight();
-  if (!opencl_handle->AssignKernelArgument(kid, 6, sizeof(unsigned int),
-                                           &blue_noise_height)) {
+  if (!opencl_handle->AssignKernelArgument(
+          grayscale_kernel_name, 6, sizeof(unsigned int), &blue_noise_height)) {
     std::cout
         << "ERROR ToGrayscaleDitheredWithBlueNoise: Failed to set parameter 6"
         << std::endl;
-    opencl_handle->CleanupAllKernels();
+    opencl_handle->CleanupKernel(grayscale_kernel_name);
     return {};
   }
-  std::srand(std::time(nullptr));
-  unsigned int blue_noise_offset =
-      std::rand() % (blue_noise_width * blue_noise_height);
-  if (!opencl_handle->AssignKernelArgument(kid, 7, sizeof(unsigned int),
-                                           &blue_noise_offset)) {
+
+  if (!is_preserving_blue_noise_offsets_) {
+    GenerateBlueNoiseOffsets();
+  }
+  if (!opencl_handle->AssignKernelArgument(grayscale_kernel_name, 7,
+                                           sizeof(unsigned int),
+                                           &blue_noise_offsets_.at(0))) {
     std::cout
         << "ERROR ToGrayscaleDitheredWithBlueNoise: Failed to set parameter 7"
         << std::endl;
-    opencl_handle->CleanupAllKernels();
+    opencl_handle->CleanupKernel(grayscale_kernel_name);
     return {};
   }
 
-  // auto global_work_sizes = opencl_handle->GetGlobalWorkSize(kid);
-  auto work_group_size = opencl_handle->GetWorkGroupSize(kid);
-  std::cout << "Got work_group_size == " << work_group_size << std::endl;
-
-  // auto max_work_group_size = opencl_handle->GetDeviceMaxWorkGroupSize();
-  // std::cout << "Got max_work_group_size == " << max_work_group_size
-  //          << std::endl;
+  auto work_group_size = opencl_handle->GetWorkGroupSize(grayscale_kernel_name);
+  // DEBUG
+  // std::cout << "Got work_group_size == " << work_group_size << std::endl;
 
   std::size_t work_group_size_0 = std::sqrt(work_group_size);
   std::size_t work_group_size_1 = work_group_size_0;
@@ -509,30 +563,31 @@ std::unique_ptr<Image> Image::ToGrayscaleDitheredWithBlueNoise(
     --work_group_size_1;
   }
 
-  std::cout << "Using WIDTHxHEIGHT: " << width << "x" << height
-            << " with work_group_sizes: " << work_group_size_0 << "x"
-            << work_group_size_1 << std::endl;
+  // DEBUG
+  // std::cout << "Using WIDTHxHEIGHT: " << width << "x" << height
+  //          << " with work_group_sizes: " << work_group_size_0 << "x"
+  //          << work_group_size_1 << std::endl;
 
-  if (!opencl_handle->ExecuteKernel2D(kid, width, height, work_group_size_0,
-                                      work_group_size_1, true)) {
+  if (!opencl_handle->ExecuteKernel2D(grayscale_kernel_name, width, height,
+                                      work_group_size_0, work_group_size_1,
+                                      true)) {
     std::cout
         << "ERROR ToGrayscaleDitheredWithBlueNoise: Failed to execute Kernel"
         << std::endl;
-    opencl_handle->CleanupAllKernels();
+    opencl_handle->CleanupKernel(grayscale_kernel_name);
     return {};
   }
 
-  if (!opencl_handle->GetBufferData(kid, output_buffer_id,
+  if (!opencl_handle->GetBufferData(grayscale_kernel_name, kBufferOutputName,
                                     grayscale_image->GetSize(),
                                     grayscale_image->data_.data())) {
     std::cout << "ERROR ToGrayscaleDitheredWithBlueNoise: Failed to get output "
                  "buffer data"
               << std::endl;
-    opencl_handle->CleanupAllKernels();
+    opencl_handle->CleanupKernel(grayscale_kernel_name);
     return {};
   }
 
-  opencl_handle->CleanupAllKernels();
   return grayscale_image;
 }
 
@@ -559,127 +614,178 @@ std::unique_ptr<Image> Image::ToColorDitheredWithBlueNoise(Image *blue_noise) {
     return {};
   }
 
+  // first check if existing kernel/buffers can be used
+  if (opencl_handle->HasKernel(kColorKernelName) &&
+      !VerifyOpenCLBuffers(
+          kColorKernelName,
+          {kBufferInputName, kBufferOutputName, kBufferBlueNoiseName}, this,
+          blue_noise)) {
+    opencl_handle->CleanupKernel(kColorKernelName);
+  }
+
   // set up kernel and buffers
-  auto kid = opencl_handle->CreateKernelFromSource(GetColorDitheringKernel(),
-                                                   "ColorDither");
-  if (kid == 0) {
-    std::cout << "ERROR ToColorDitheredWithBlueNoise: Failed to create "
+  const std::string &color_kernel_name = GetColorKernelName();
+  if (color_kernel_name.empty() ||
+      !opencl_handle->HasKernel(color_kernel_name)) {
+    std::cout << "ERROR ToColorDitheredWithBlueNoise: Failed to init "
                  "OpenCL Kernel"
               << std::endl;
-    opencl_handle->CleanupAllKernels();
+    opencl_handle->CleanupKernel(color_kernel_name);
     return {};
   }
 
-  auto input_buffer_id = opencl_handle->CreateKernelBuffer(
-      kid, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, this->data_.size(),
-      this->data_.data());
-  if (input_buffer_id == 0) {
+  if (!opencl_handle->HasBuffer(color_kernel_name, kBufferInputName)) {
+    if (!opencl_handle->CreateKernelBuffer(color_kernel_name, CL_MEM_READ_ONLY,
+                                           this->data_.size(), nullptr,
+                                           kBufferInputName)) {
+      std::cout
+          << "ERROR ToColorDitheredWithBlueNoise: Failed to alloc input buffer"
+          << std::endl;
+      opencl_handle->CleanupKernel(color_kernel_name);
+      return {};
+    }
+  }
+
+  if (!opencl_handle->SetKernelBufferData(color_kernel_name, kBufferInputName,
+                                          this->data_.size(),
+                                          this->data_.data())) {
     std::cout
-        << "ERROR ToColorDitheredWithBlueNoise: Failed to set input buffer"
+        << "ERROR ToColorDitheredWithBlueNoise: Failed to init input buffer"
         << std::endl;
-    opencl_handle->CleanupAllKernels();
+    opencl_handle->CleanupKernel(color_kernel_name);
     return {};
   }
 
-  auto output_buffer_id = opencl_handle->CreateKernelBuffer(
-      kid, CL_MEM_WRITE_ONLY, this->data_.size(), nullptr);
-  if (output_buffer_id == 0) {
-    std::cout
-        << "ERROR ToColorDitheredWithBlueNoise: Failed to set output buffer"
-        << std::endl;
-    opencl_handle->CleanupAllKernels();
-    return {};
+  if (!opencl_handle->HasBuffer(color_kernel_name, kBufferOutputName)) {
+    if (!opencl_handle->CreateKernelBuffer(color_kernel_name, CL_MEM_WRITE_ONLY,
+                                           this->data_.size(), nullptr,
+                                           kBufferOutputName)) {
+      std::cout
+          << "ERROR ToColorDitheredWithBlueNoise: Failed to set output buffer"
+          << std::endl;
+      opencl_handle->CleanupKernel(color_kernel_name);
+      return {};
+    }
   }
 
-  auto blue_noise_buffer_id = opencl_handle->CreateKernelBuffer(
-      kid, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, blue_noise->data_.size(),
-      blue_noise->data_.data());
-  if (blue_noise_buffer_id == 0) {
-    std::cout << "ERROR ToColorDitheredWithBlueNoise: Failed to set "
+  if (!opencl_handle->HasBuffer(color_kernel_name, kBufferBlueNoiseName)) {
+    if (!opencl_handle->CreateKernelBuffer(color_kernel_name, CL_MEM_READ_ONLY,
+                                           blue_noise->data_.size(), nullptr,
+                                           kBufferBlueNoiseName)) {
+      std::cout << "ERROR ToColorDitheredWithBlueNoise: Failed to alloc "
+                   "blue-noise buffer"
+                << std::endl;
+      opencl_handle->CleanupKernel(color_kernel_name);
+      return {};
+    }
+  }
+
+  if (!opencl_handle->SetKernelBufferData(
+          color_kernel_name, kBufferBlueNoiseName, blue_noise->data_.size(),
+          blue_noise->data_.data())) {
+    std::cout << "ERROR ToColorDitheredWithBlueNoise: Failed to init "
                  "blue-noise buffer"
               << std::endl;
-    opencl_handle->CleanupAllKernels();
+    opencl_handle->CleanupKernel(color_kernel_name);
     return {};
   }
 
-  std::srand(std::time(nullptr));
-  std::array<unsigned int, 3> blue_noise_offsets = {
-      std::rand() % blue_noise->GetSize(), std::rand() % blue_noise->GetSize(),
-      std::rand() % blue_noise->GetSize()};
+  if (!opencl_handle->HasBuffer(color_kernel_name,
+                                kBufferBlueNoiseOffsetsName)) {
+    if (!is_preserving_blue_noise_offsets_) {
+      GenerateBlueNoiseOffsets();
+    }
 
-  while (blue_noise_offsets[0] == blue_noise_offsets[1] ||
-         blue_noise_offsets[1] == blue_noise_offsets[2] ||
-         blue_noise_offsets[0] == blue_noise_offsets[2]) {
-    blue_noise_offsets = {std::rand() % blue_noise->GetSize(),
-                          std::rand() % blue_noise->GetSize(),
-                          std::rand() % blue_noise->GetSize()};
+    if (!opencl_handle->CreateKernelBuffer(
+            color_kernel_name, CL_MEM_READ_ONLY,
+            sizeof(unsigned int) * blue_noise_offsets_.size(), nullptr,
+            kBufferBlueNoiseOffsetsName)) {
+      std::cout
+          << "ERROR ToColorDitheredWithBlueNoise: Failed to alloc blue-noise "
+             "offsets buffer"
+          << std::endl;
+      opencl_handle->CleanupKernel(color_kernel_name);
+      return {};
+    }
   }
 
-  auto blue_noise_offsets_buffer_id = opencl_handle->CreateKernelBuffer(
-      kid, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(unsigned int) * 3,
-      blue_noise_offsets.data());
+  if (!opencl_handle->SetKernelBufferData(
+          color_kernel_name, kBufferBlueNoiseOffsetsName,
+          blue_noise_offsets_.size() * sizeof(unsigned int),
+          blue_noise_offsets_.data())) {
+    std::cout
+        << "ERROR ToColorDitheredWithBlueNoise: Failed to init blue-noise "
+           "offsets buffer"
+        << std::endl;
+    opencl_handle->CleanupKernel(color_kernel_name);
+    return {};
+  }
 
   // assign buffers/data to kernel parameters
-  if (!opencl_handle->AssignKernelBuffer(kid, 0, input_buffer_id)) {
+  if (!opencl_handle->AssignKernelBuffer(color_kernel_name, 0,
+                                         kBufferInputName)) {
     std::cout << "ERROR ToColorDitheredWithBlueNoise: Failed to set parameter 0"
               << std::endl;
-    opencl_handle->CleanupAllKernels();
+    opencl_handle->CleanupKernel(color_kernel_name);
     return {};
   }
-  if (!opencl_handle->AssignKernelBuffer(kid, 1, blue_noise_buffer_id)) {
+  if (!opencl_handle->AssignKernelBuffer(color_kernel_name, 1,
+                                         kBufferBlueNoiseName)) {
     std::cout << "ERROR ToColorDitheredWithBlueNoise: Failed to set parameter 1"
               << std::endl;
-    opencl_handle->CleanupAllKernels();
+    opencl_handle->CleanupKernel(color_kernel_name);
     return {};
   }
-  if (!opencl_handle->AssignKernelBuffer(kid, 2, output_buffer_id)) {
+  if (!opencl_handle->AssignKernelBuffer(color_kernel_name, 2,
+                                         kBufferOutputName)) {
     std::cout << "ERROR ToColorDitheredWithBlueNoise: Failed to set parameter 2"
               << std::endl;
-    opencl_handle->CleanupAllKernels();
+    opencl_handle->CleanupKernel(color_kernel_name);
     return {};
   }
   unsigned int input_width = this->GetWidth();
-  if (!opencl_handle->AssignKernelArgument(kid, 3, sizeof(unsigned int),
-                                           &input_width)) {
+  if (!opencl_handle->AssignKernelArgument(
+          color_kernel_name, 3, sizeof(unsigned int), &input_width)) {
     std::cout << "ERROR ToColorDitheredWithBlueNoise: Failed to set parameter 3"
               << std::endl;
-    opencl_handle->CleanupAllKernels();
+    opencl_handle->CleanupKernel(color_kernel_name);
     return {};
   }
   unsigned int input_height = this->GetHeight();
-  if (!opencl_handle->AssignKernelArgument(kid, 4, sizeof(unsigned int),
-                                           &input_height)) {
+  if (!opencl_handle->AssignKernelArgument(
+          color_kernel_name, 4, sizeof(unsigned int), &input_height)) {
     std::cout << "ERROR ToColorDitheredWithBlueNoise: Failed to set parameter 4"
               << std::endl;
-    opencl_handle->CleanupAllKernels();
+    opencl_handle->CleanupKernel(color_kernel_name);
     return {};
   }
   unsigned int blue_noise_width = blue_noise->GetWidth();
-  if (!opencl_handle->AssignKernelArgument(kid, 5, sizeof(unsigned int),
-                                           &blue_noise_width)) {
+  if (!opencl_handle->AssignKernelArgument(
+          color_kernel_name, 5, sizeof(unsigned int), &blue_noise_width)) {
     std::cout << "ERROR ToColorDitheredWithBlueNoise: Failed to set parameter 5"
               << std::endl;
-    opencl_handle->CleanupAllKernels();
+    opencl_handle->CleanupKernel(color_kernel_name);
     return {};
   }
   unsigned int blue_noise_height = blue_noise->GetHeight();
-  if (!opencl_handle->AssignKernelArgument(kid, 6, sizeof(unsigned int),
-                                           &blue_noise_height)) {
+  if (!opencl_handle->AssignKernelArgument(
+          color_kernel_name, 6, sizeof(unsigned int), &blue_noise_height)) {
     std::cout << "ERROR ToColorDitheredWithBlueNoise: Failed to set parameter 6"
               << std::endl;
-    opencl_handle->CleanupAllKernels();
+    opencl_handle->CleanupKernel(color_kernel_name);
     return {};
   }
-  if (!opencl_handle->AssignKernelBuffer(kid, 7,
-                                         blue_noise_offsets_buffer_id)) {
+  if (!opencl_handle->AssignKernelBuffer(color_kernel_name, 7,
+                                         kBufferBlueNoiseOffsetsName)) {
     std::cout << "ERROR ToColorDitheredWithBlueNoise: Failed to set parameter 7"
               << std::endl;
-    opencl_handle->CleanupAllKernels();
+    opencl_handle->CleanupKernel(color_kernel_name);
     return {};
   }
 
-  auto work_group_size = opencl_handle->GetWorkGroupSize(kid);
-  std::cout << "Got work_group_size == " << work_group_size << std::endl;
+  auto work_group_size = opencl_handle->GetWorkGroupSize(color_kernel_name);
+  // DEBUG
+  // std::cout << "Got work_group_size == " << work_group_size << std::endl;
 
   std::size_t work_group_size_0 = std::sqrt(work_group_size);
   std::size_t work_group_size_1 = work_group_size_0;
@@ -691,16 +797,17 @@ std::unique_ptr<Image> Image::ToColorDitheredWithBlueNoise(Image *blue_noise) {
     --work_group_size_1;
   }
 
-  std::cout << "Using WIDTHxHEIGHT: " << input_width << "x" << input_height
-            << " with work_group_sizes: " << work_group_size_0 << "x"
-            << work_group_size_1 << std::endl;
+  // DEBUG
+  // std::cout << "Using WIDTHxHEIGHT: " << input_width << "x" << input_height
+  //          << " with work_group_sizes: " << work_group_size_0 << "x"
+  //          << work_group_size_1 << std::endl;
 
-  if (!opencl_handle->ExecuteKernel2D(kid, input_width, input_height,
-                                      work_group_size_0, work_group_size_1,
-                                      true)) {
+  if (!opencl_handle->ExecuteKernel2D(color_kernel_name, input_width,
+                                      input_height, work_group_size_0,
+                                      work_group_size_1, true)) {
     std::cout << "ERROR ToColorDitheredWithBlueNoise: Failed to execute Kernel"
               << std::endl;
-    opencl_handle->CleanupAllKernels();
+    opencl_handle->CleanupKernel(color_kernel_name);
     return {};
   }
 
@@ -708,23 +815,22 @@ std::unique_ptr<Image> Image::ToColorDitheredWithBlueNoise(Image *blue_noise) {
       std::unique_ptr<Image>(new Image(*this));
   result_image->is_dithered_color_ = true;
 
-  if (!opencl_handle->GetBufferData(kid, output_buffer_id,
+  if (!opencl_handle->GetBufferData(color_kernel_name, kBufferOutputName,
                                     result_image->GetSize(),
                                     result_image->data_.data())) {
     std::cout << "ERROR ToColorDitheredWithBlueNoise: Failed to get output "
                  "buffer data"
               << std::endl;
-    opencl_handle->CleanupAllKernels();
+    opencl_handle->CleanupKernel(color_kernel_name);
     return {};
   }
 
-  opencl_handle->CleanupAllKernels();
   return result_image;
 }
 
 const char *Image::GetGrayscaleDitheringKernel() {
-  if (opencl_grayscale_kernel_ == nullptr) {
-    opencl_grayscale_kernel_ =
+  if (kOpenCLGrayscaleKernel == nullptr) {
+    kOpenCLGrayscaleKernel =
         "unsigned int BN_INDEX(\n"
         "unsigned int x,\n"
         "unsigned int y,\n"
@@ -736,7 +842,8 @@ const char *Image::GetGrayscaleDitheringKernel() {
         "return offset_x + offset_y * bn_width;\n"
         "}\n"
         "\n"
-        "__kernel void Dither(\n"
+        "__kernel void " IGPUP_PROJECT_GRAYSCALE_KERNEL_NAME_
+        "(\n"
         "__global const unsigned char *input,\n"
         "__global const unsigned char *blue_noise,\n"
         "__global unsigned char *output,\n"
@@ -755,12 +862,12 @@ const char *Image::GetGrayscaleDitheringKernel() {
         "}\n";
   }
 
-  return opencl_grayscale_kernel_;
+  return kOpenCLGrayscaleKernel;
 }
 
 const char *Image::GetColorDitheringKernel() {
-  if (opencl_color_kernel_ == nullptr) {
-    opencl_color_kernel_ =
+  if (kOpenCLColorKernel == nullptr) {
+    kOpenCLColorKernel =
         "unsigned int BN_INDEX(\n"
         "unsigned int x,\n"
         "unsigned int y,\n"
@@ -772,7 +879,8 @@ const char *Image::GetColorDitheringKernel() {
         "return offset_x + offset_y * bn_width;\n"
         "}\n"
         "\n"
-        "__kernel void ColorDither(\n"
+        "__kernel void " IGPUP_PROJECT_COLOR_KERNEL_NAME_
+        "(\n"
         "__global const unsigned char *input,\n"
         "__global const unsigned char *blue_noise,\n"
         "__global unsigned char *output,\n"
@@ -804,7 +912,7 @@ const char *Image::GetColorDitheringKernel() {
         "}\n";
   }
 
-  return opencl_color_kernel_;
+  return kOpenCLColorKernel;
 }
 
 OpenCLHandle::Ptr Image::GetOpenCLHandle() {
@@ -1268,4 +1376,88 @@ void Image::DecodePPM(const std::string &filename) {
     std::cout << "ERROR: Invalid \"magic number\" in header of file \""
               << filename << '"' << std::endl;
   }
+}
+
+const std::string &Image::GetGrayscaleKernelName() {
+  if (!GetOpenCLHandle()) {
+    return kEmptyString;
+  } else if (!opencl_handle_->HasKernel(kGrayscaleKernelName)) {
+    if (!opencl_handle_->CreateKernelFromSource(GetGrayscaleDitheringKernel(),
+                                                kGrayscaleKernelName)) {
+      std::cout << "ERROR: Failed to create " << kGrayscaleKernelName
+                << " OpenCL Kernel" << std::endl;
+      return kEmptyString;
+    }
+  }
+
+  return kGrayscaleKernelName;
+}
+
+const std::string &Image::GetColorKernelName() {
+  if (!GetOpenCLHandle()) {
+    return kEmptyString;
+  } else if (!opencl_handle_->HasKernel(kColorKernelName)) {
+    if (!opencl_handle_->CreateKernelFromSource(GetColorDitheringKernel(),
+                                                kColorKernelName)) {
+      std::cout << "ERROR: Failed to create " << kColorKernelName
+                << " OpenCL Kernel" << std::endl;
+      return kEmptyString;
+    }
+  }
+
+  return kColorKernelName;
+}
+
+void Image::GenerateBlueNoiseOffsets() {
+  std::srand(std::time(nullptr));
+  while (DuplicateBlueNoiseOffsetExists()) {
+    for (unsigned int i = 0; i < blue_noise_offsets_.size(); ++i) {
+      blue_noise_offsets_.at(i) = rand() % kBlueNoiseOffsetMax;
+    }
+  }
+}
+
+bool Image::DuplicateBlueNoiseOffsetExists() const {
+  for (unsigned int i = 1; i < blue_noise_offsets_.size(); ++i) {
+    if (blue_noise_offsets_.at(i - 1) == blue_noise_offsets_.at(i)) {
+      return true;
+    }
+  }
+  if (blue_noise_offsets_.size() > 1 &&
+      blue_noise_offsets_.at(0) ==
+          blue_noise_offsets_.at(blue_noise_offsets_.size() - 1)) {
+    return true;
+  }
+
+  return false;
+}
+
+bool Image::VerifyOpenCLBuffers(const std::string &kernel_name,
+                                const std::vector<std::string> &buffer_names,
+                                const Image *input_image,
+                                const Image *blue_noise_image) const {
+  std::size_t size;
+  for (auto &buffer_name : buffer_names) {
+    size = opencl_handle_->GetBufferSize(kernel_name, buffer_name);
+    if (size == 0) {
+      return false;
+    }
+    if (buffer_name == kBufferInputName || buffer_name == kBufferOutputName) {
+      if (input_image->is_grayscale_) {
+        if (size != input_image->width_ * input_image->height_) {
+          return false;
+        }
+      } else {
+        if (size != input_image->width_ * input_image->height_ * 4) {
+          return false;
+        }
+      }
+    } else if (buffer_name == kBufferBlueNoiseName) {
+      if (size != blue_noise_image->width_ * blue_noise_image->height_) {
+        return false;
+      }
+    }
+  }
+
+  return true;
 }

@@ -130,11 +130,20 @@ class Image {
  private:
   friend class Video;
 
-  static const char *opencl_grayscale_kernel_;
-  static const char *opencl_color_kernel_;
-  static const std::array<png_color, 2> dither_bw_palette_;
-  static const std::array<png_color, 8> dither_color_palette_;
+  static constexpr unsigned int kBlueNoiseOffsetMax = 128;
+  static const char *kOpenCLGrayscaleKernel;
+  static const char *kOpenCLColorKernel;
+  static const std::array<png_color, 2> kDitherBWPalette;
+  static const std::array<png_color, 8> kDitherColorPalette;
+  static const std::string kBufferInputName;
+  static const std::string kBufferOutputName;
+  static const std::string kBufferBlueNoiseName;
+  static const std::string kBufferBlueNoiseOffsetsName;
+  static const std::string kGrayscaleKernelName;
+  static const std::string kColorKernelName;
+  static const std::string kEmptyString;
   OpenCLHandle::Ptr opencl_handle_;
+  std::array<unsigned int, 3> blue_noise_offsets_;
   /// Internally holds rgba or grayscale (1 channel)
   std::vector<uint8_t> data_;
   unsigned int width_;
@@ -142,10 +151,22 @@ class Image {
   bool is_grayscale_;
   bool is_dithered_grayscale_;
   bool is_dithered_color_;
+  bool is_preserving_blue_noise_offsets_;
 
   void DecodePNG(const std::string &filename);
   void DecodePGM(const std::string &filename);
   void DecodePPM(const std::string &filename);
+
+  const std::string &GetGrayscaleKernelName();
+  const std::string &GetColorKernelName();
+
+  void GenerateBlueNoiseOffsets();
+  bool DuplicateBlueNoiseOffsetExists() const;
+
+  bool VerifyOpenCLBuffers(const std::string &kernel_name,
+                           const std::vector<std::string> &buffer_names,
+                           const Image *input_image,
+                           const Image *blue_noise_image) const;
 };
 
 #endif
