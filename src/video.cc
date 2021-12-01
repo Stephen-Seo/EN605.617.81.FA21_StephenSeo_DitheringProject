@@ -25,12 +25,13 @@ Video::~Video() {
 }
 
 bool Video::DitherVideo(const char *output_filename, Image *blue_noise,
-                        bool grayscale) {
-  return DitherVideo(std::string(output_filename), blue_noise, grayscale);
+                        bool grayscale, bool overwrite) {
+  return DitherVideo(std::string(output_filename), blue_noise, grayscale,
+                     overwrite);
 }
 
 bool Video::DitherVideo(const std::string &output_filename, Image *blue_noise,
-                        bool grayscale) {
+                        bool grayscale, bool overwrite) {
   // Get AVFormatContext for input file
   AVFormatContext *avf_context = nullptr;
   std::string url = std::string("file:") + input_filename_;

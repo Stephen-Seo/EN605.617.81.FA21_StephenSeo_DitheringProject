@@ -64,7 +64,11 @@ Image::Image(const std::string &filename)
       is_dithered_grayscale_(false),
       is_dithered_color_(false),
       is_preserving_blue_noise_offsets_(true) {
-  if (filename.compare(filename.size() - 4, filename.size(), ".png") == 0) {
+  if (filename.empty()) {
+    std::cout << "ERROR: Image got empty filename string" << std::endl;
+    return;
+  } else if (filename.compare(filename.size() - 4, filename.size(), ".png") ==
+             0) {
     // filename expected to be .png
     std::cout << "INFO: PNG filename extension detected, decoding..."
               << std::endl;

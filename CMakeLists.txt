@@ -3,6 +3,7 @@ project(EN605.617.81.FA21_StephenSeo_DitheringProject)
 
 set(Project_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/arg_parse.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/src/image.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/src/video.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/src/opencl_handle.cc

@@ -27,7 +27,7 @@ class Video {
 
   /// Same as DitherVideo(const std::string&, Image*, bool)
   bool DitherVideo(const char *output_filename, Image *blue_noise,
-                   bool grayscale = false);
+                   bool grayscale = false, bool overwrite = false);
 
   /*!
    * \brief Dithers the frames in the input video.
@@ -39,7 +39,7 @@ class Video {
    * \return True on success.
    */
   bool DitherVideo(const std::string &output_filename, Image *blue_noise,
-                   bool grayscale = false);
+                   bool grayscale = false, bool overwrite = false);
 
  private:
   Image image_;
