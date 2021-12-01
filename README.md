@@ -9,6 +9,12 @@ dithering single images or turning a video into dithered images.
 
 The "develop" branch may have more up to date code.
 
+# Usage
+
+A "blue-noise" image is integral to dithering images. A generated blue-noise
+image is provided in the "res/" directory. Run the program with "--help" to get
+info on how to use it.
+
 # Other Notes
 
 ~~I plan on adding the MIT License to this project once the course (that this
