@@ -13,6 +13,11 @@ constexpr unsigned int kReadBufPaddingSize = AV_INPUT_BUFFER_PADDING_SIZE;
 constexpr unsigned int kReadBufSizeWithPadding =
     kReadBufSize + kReadBufPaddingSize;
 
+/*!
+ * \brief Helper class that uses Image and OpenCLHandle to dither video frames.
+ *
+ * Note that libraries provided by ffmpeg are used to decode the video.
+ */
 class Video {
  public:
   explicit Video(const char *video_filename);
@@ -20,8 +25,15 @@ class Video {
 
   ~Video();
 
+  /// Same as DitherVideo(const std::string&, Image*, bool)
   bool DitherVideo(const char *output_filename, Image *blue_noise,
                    bool grayscale = false);
+
+  /*!
+   * \brief Dithers the frames in the input video.
+   *
+   * \return True on success.
+   */
   bool DitherVideo(const std::string &output_filename, Image *blue_noise,
                    bool grayscale = false);
 
