@@ -25,7 +25,7 @@ class Video {
 
   ~Video();
 
-  /// Same as DitherVideo(const std::string&, Image*, bool)
+  /// Same as DitherVideo(const std::string&, Image*, bool, bool)
   bool DitherVideo(const char *output_filename, Image *blue_noise,
                    bool grayscale = false, bool overwrite = false);
 
