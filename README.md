@@ -20,6 +20,10 @@ PNG, PGM, and PPM image formats are supported.
 For decoding video, any format that ffmpeg can read should work (though if
 things don't work, try using MP4 files).
 
+WARNING: Video decoding is still a WIP. The video is currently decoded, but an
+output video being encoded hasn't been implemented yet. The current
+implementation writes each video frame to a PNG image in the current directory.
+
 # Other Notes
 
 ~~I plan on adding the MIT License to this project once the course (that this
