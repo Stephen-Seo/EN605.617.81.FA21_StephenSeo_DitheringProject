@@ -15,6 +15,11 @@ A "blue-noise" image is integral to dithering images. A generated blue-noise
 image is provided in the "res/" directory. Run the program with "--help" to get
 info on how to use it.
 
+PNG, PGM, and PPM image formats are supported.
+
+For decoding video, any format that ffmpeg can read should work (though if
+things don't work, try using MP4 files).
+
 # Other Notes
 
 ~~I plan on adding the MIT License to this project once the course (that this
