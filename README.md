@@ -11,5 +11,7 @@ The "develop" branch may have more up to date code.
 
 # Other Notes
 
-I plan on adding the MIT License to this project once the course (that this
-project was made for) is over.
+~~I plan on adding the MIT License to this project once the course (that this
+project was made for) is over.~~
+
+I went ahead and applied the MIT License earlier than noted here.
