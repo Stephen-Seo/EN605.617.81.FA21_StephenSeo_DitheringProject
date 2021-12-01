@@ -32,6 +32,10 @@ class Video {
   /*!
    * \brief Dithers the frames in the input video.
    *
+   * Currently, the program doesn't create the output video, but instead outputs
+   * each frame as an individual image in the current directory. If things go
+   * well, the expected behavior will be implemented soon.
+   *
    * \return True on success.
    */
   bool DitherVideo(const std::string &output_filename, Image *blue_noise,
