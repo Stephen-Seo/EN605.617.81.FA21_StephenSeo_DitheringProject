@@ -15,3 +15,7 @@ The "develop" branch may have more up to date code.
 project was made for) is over.~~
 
 I went ahead and applied the MIT License earlier than noted here.
+
+# Legal Stuff
+
+[This program uses FFmpeg which is licensed under the LGPL 2.1 license](https://ffmpeg.org/legal.html)
