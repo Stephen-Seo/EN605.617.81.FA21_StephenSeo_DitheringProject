@@ -1423,15 +1423,12 @@ void Image::GenerateBlueNoiseOffsets() {
 }
 
 bool Image::DuplicateBlueNoiseOffsetExists() const {
-  for (unsigned int i = 1; i < blue_noise_offsets_.size(); ++i) {
-    if (blue_noise_offsets_.at(i - 1) == blue_noise_offsets_.at(i)) {
-      return true;
+  for (unsigned int i = 0; i < blue_noise_offsets_.size(); ++i) {
+    for (unsigned int j = i + 1; j < blue_noise_offsets_.size(); ++j) {
+      if (blue_noise_offsets_.at(i) == blue_noise_offsets_.at(j)) {
+        return true;
+      }
     }
-  }
-  if (blue_noise_offsets_.size() > 1 &&
-      blue_noise_offsets_.at(0) ==
-          blue_noise_offsets_.at(blue_noise_offsets_.size() - 1)) {
-    return true;
   }
 
   return false;

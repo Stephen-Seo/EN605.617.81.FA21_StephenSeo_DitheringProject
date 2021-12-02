@@ -57,7 +57,8 @@ class Video {
   unsigned int packet_count_;
 
   bool HandleDecodingPacket(AVCodecContext *codec_ctx, AVPacket *pkt,
-                            AVFrame *frame, Image *blue_noise, bool grayscale);
+                            AVFrame *frame, Image *blue_noise, bool grayscale,
+                            bool overwrite);
 };
 
 #endif

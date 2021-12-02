@@ -113,14 +113,16 @@ bool Video::DitherVideo(const std::string &output_filename, Image *blue_noise,
   // read frames
   while (av_read_frame(avf_context, pkt) >= 0) {
     if (pkt->stream_index == video_stream_idx) {
-      if (!HandleDecodingPacket(codec_ctx, pkt, frame, blue_noise, grayscale)) {
+      if (!HandleDecodingPacket(codec_ctx, pkt, frame, blue_noise, grayscale,
+                                overwrite)) {
         return false;
       }
     }
   }
 
   // flush decoders
-  if (!HandleDecodingPacket(codec_ctx, nullptr, frame, blue_noise, grayscale)) {
+  if (!HandleDecodingPacket(codec_ctx, nullptr, frame, blue_noise, grayscale,
+                            overwrite)) {
     return false;
   }
 
@@ -134,7 +136,7 @@ bool Video::DitherVideo(const std::string &output_filename, Image *blue_noise,
 
 bool Video::HandleDecodingPacket(AVCodecContext *codec_ctx, AVPacket *pkt,
                                  AVFrame *frame, Image *blue_noise,
-                                 bool grayscale) {
+                                 bool grayscale, bool overwrite) {
   int return_value = avcodec_send_packet(codec_ctx, pkt);
   if (return_value < 0) {
     std::cout << "ERROR: Failed to decode packet (" << packet_count_ << ')'
@@ -253,7 +255,9 @@ bool Video::HandleDecodingPacket(AVCodecContext *codec_ctx, AVPacket *pkt,
       out_name += std::to_string(frame_count_);
     }
     out_name += ".png";
-    dithered_image->SaveAsPNG(out_name, false);
+    if (!dithered_image->SaveAsPNG(out_name, overwrite)) {
+      return false;
+    }
     // TODO encode video with dithered_image
 
     // cleanup
