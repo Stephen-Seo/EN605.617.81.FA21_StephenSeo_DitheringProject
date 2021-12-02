@@ -25,6 +25,14 @@ class Video {
 
   ~Video();
 
+  // disable copy
+  Video(const Video &other) = delete;
+  Video &operator=(const Video &other) = delete;
+
+  // allow move
+  Video(Video &&other) = default;
+  Video &operator=(Video &&other) = default;
+
   /// Same as DitherVideo(const std::string&, Image*, bool, bool)
   bool DitherVideo(const char *output_filename, Image *blue_noise,
                    bool grayscale = false, bool overwrite = false);

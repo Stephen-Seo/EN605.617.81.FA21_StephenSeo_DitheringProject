@@ -121,6 +121,8 @@ class OpenCLContext {
      * \brief Assign a previously created buffer to a kernel function's
      * parameter.
      *
+     * idx refers to the parameter index for the kernel function.
+     *
      * \return true on success.
      */
     bool AssignKernelBuffer(const std::string &kernel_name, unsigned int idx,

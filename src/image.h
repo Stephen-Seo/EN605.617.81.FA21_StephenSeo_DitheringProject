@@ -103,6 +103,9 @@ class Image {
   /*!
    * \brief Returns a grayscaled and dithered version of the current Image.
    *
+   * Using std::optional would be ideal here, but this program is aiming for
+   * compatibility up to C++11, and std::optional was made available in C++17.
+   *
    * \return A std::unique_ptr holding an Image on success, empty otherwise.
    */
   std::unique_ptr<Image> ToGrayscaleDitheredWithBlueNoise(Image *blue_noise);
@@ -113,6 +116,9 @@ class Image {
    * Unlike the grayscaled version, this dithers the red, green, and blue
    * channels. There may be mixed pixels as a result, such as yellow, cyan,
    * magenta, or white.
+   *
+   * Using std::optional would be ideal here, but this program is aiming for
+   * compatibility up to C++11, and std::optional was made available in C++17.
    *
    * \return A std::unique_ptr holding an Image on success, empty otherwise.
    */
