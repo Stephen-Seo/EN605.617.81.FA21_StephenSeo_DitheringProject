@@ -20,9 +20,15 @@ PNG, PGM, and PPM image formats are supported.
 For decoding video, any format that ffmpeg can read should work (though if
 things don't work, try using MP4 files).
 
-WARNING: Video decoding is still a WIP. The video is currently decoded, but an
+~~WARNING: Video decoding is still a WIP. The video is currently decoded, but an
 output video being encoded hasn't been implemented yet. The current
-implementation writes each video frame to a PNG image in the current directory.
+implementation writes each video frame to a PNG image in the current
+directory.~~
+
+Video decoding and encoding is finished, but there is some noticable drops in
+quality when encoding to colored dithered video. It may be better to just
+output each frame to individual PNGs, then combining them later just like as
+mentioned here: https://trac.ffmpeg.org/wiki/Slideshow .
 
 # Other Notes
 
