@@ -60,7 +60,8 @@ int main(int argc, char **argv) {
   } else {
     Video video(args.input_filename);
     if (!video.DitherVideo(args.output_filename, &blue_noise,
-                           args.do_dither_grayscaled_, args.do_overwrite_)) {
+                           args.do_dither_grayscaled_, args.do_overwrite_,
+                           args.do_video_pngs_)) {
       std::cout << "ERROR: Failed to dither frames from input video \""
                 << args.input_filename << '"' << std::endl;
       Args::PrintUsage();

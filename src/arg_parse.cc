@@ -14,7 +14,8 @@ void Args::PrintUsage() {
   std::cout
       << "Usage: [-h | --help] [-i <filename> | --input <filename>] [-o "
          "<filename> | --output <filename>] [-b <filename> | --blue "
-         "<filename>] [-g | --gray] [--image] [--video] [--overwrite]\n"
+         "<filename>] [-g | --gray] [--image] [--video] [--video-pngs] "
+         "[--overwrite]\n"
          "  -h | --help\t\t\t\tPrint this usage text\n"
          "  -i <filename> | --input <filename>\tSet input filename\n"
          "  -o <filename> | --output <filename>\tSet output filename\n"
@@ -22,6 +23,7 @@ void Args::PrintUsage() {
          "  -g | --gray\t\t\t\tDither output in grayscale\n"
          "  --image\t\t\t\tDither a single image\n"
          "  --video\t\t\t\tDither frames in a video\n"
+         "  --video-pngs\t\t\t\tDither frames but output as individual pngs\n"
          "  --overwrite\t\t\t\tAllow overwriting existing files\n"
       << std::endl;
 }
@@ -56,6 +58,9 @@ bool Args::ParseArgs(int argc, char **argv) {
       do_dither_image_ = true;
     } else if (std::strcmp(argv[0], "--video") == 0) {
       do_dither_image_ = false;
+    } else if (std::strcmp(argv[0], "--video-pngs") == 0) {
+      do_dither_image_ = false;
+      do_video_pngs_ = true;
     } else if (std::strcmp(argv[0], "--overwrite") == 0) {
       do_overwrite_ = true;
     } else {

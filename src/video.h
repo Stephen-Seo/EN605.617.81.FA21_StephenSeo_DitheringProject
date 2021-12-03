@@ -1,8 +1,11 @@
 #ifndef IGPUP_DITHERING_PROJECT_VIDEO_H_
 #define IGPUP_DITHERING_PROJECT_VIDEO_H_
 
+#include <tuple>
+
 extern "C" {
 #include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
 #include <libswscale/swscale.h>
 }
 
@@ -12,6 +15,8 @@ constexpr unsigned int kReadBufSize = 4096;
 constexpr unsigned int kReadBufPaddingSize = AV_INPUT_BUFFER_PADDING_SIZE;
 constexpr unsigned int kReadBufSizeWithPadding =
     kReadBufSize + kReadBufPaddingSize;
+
+constexpr unsigned int kOutputBitrate = 40000000;
 
 /*!
  * \brief Helper class that uses Image and OpenCLHandle to dither video frames.
@@ -35,30 +40,39 @@ class Video {
 
   /// Same as DitherVideo(const std::string&, Image*, bool, bool)
   bool DitherVideo(const char *output_filename, Image *blue_noise,
-                   bool grayscale = false, bool overwrite = false);
+                   bool grayscale = false, bool overwrite = false,
+                   bool output_as_pngs = false);
 
   /*!
    * \brief Dithers the frames in the input video.
    *
-   * Currently, the program doesn't create the output video, but instead outputs
-   * each frame as an individual image in the current directory. If things go
-   * well, the expected behavior will be implemented soon.
+   * If output_as_pngs is true, then the output will be individaul PNGs of each
+   * frame instead of a video file. This may be desireable because the output
+   * video struggles to maintain video quality.
    *
    * \return True on success.
    */
   bool DitherVideo(const std::string &output_filename, Image *blue_noise,
-                   bool grayscale = false, bool overwrite = false);
+                   bool grayscale = false, bool overwrite = false,
+                   bool output_as_pngs = false);
 
  private:
   Image image_;
   std::string input_filename_;
-  SwsContext *sws_context_;
+  SwsContext *sws_dec_context_;
+  SwsContext *sws_enc_context_;
   unsigned int frame_count_;
   unsigned int packet_count_;
+  bool was_grayscale_;
 
-  bool HandleDecodingPacket(AVCodecContext *codec_ctx, AVPacket *pkt,
-                            AVFrame *frame, Image *blue_noise, bool grayscale,
-                            bool overwrite);
+  std::tuple<bool, std::vector<AVFrame *>> HandleDecodingPacket(
+      AVCodecContext *codec_ctx, AVPacket *pkt, AVFrame *frame,
+      Image *blue_noise, bool grayscale, bool color_changed,
+      bool output_as_pngs);
+
+  bool HandleEncodingFrame(AVFormatContext *enc_format_ctx,
+                           AVCodecContext *enc_codec_ctx, AVFrame *yuv_frame,
+                           AVStream *video_stream);
 };
 
 #endif

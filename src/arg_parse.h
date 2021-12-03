@@ -14,6 +14,7 @@ struct Args {
   bool do_dither_image_;
   bool do_dither_grayscaled_;
   bool do_overwrite_;
+  bool do_video_pngs_;
   std::string input_filename;
   std::string output_filename;
   std::string blue_noise_filename;
