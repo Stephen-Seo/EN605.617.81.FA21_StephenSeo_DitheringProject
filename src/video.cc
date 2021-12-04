@@ -472,10 +472,12 @@ std::tuple<bool, std::vector<AVFrame *>> Video::HandleDecodingPacket(
 
     if (output_as_pngs) {
       std::string out_name = "output_";
+      unsigned int tens = 1;
       for (unsigned int i = 0; i < 9; ++i) {
-        if (frame_count_ < (unsigned int)std::pow(10, i)) {
+        if (frame_count_ < tens) {
           out_name += "0";
         }
+        tens *= 10;
       }
       out_name += std::to_string(frame_count_);
       out_name += ".png";
