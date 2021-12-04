@@ -37,6 +37,14 @@ project was made for) is over.~~
 
 I went ahead and applied the MIT License earlier than noted here.
 
+## C++ Compatability
+
+The source is written to work with C++11 but not any higher. The only
+significant part that this affects are the functions in the "Image" class that
+return an optional value (non-optional on success). Ideally, C++17's
+std::optional would be used in that case, but since I am keeping things to work
+up to C++11, std::unique\_ptr is used instead.
+
 # Legal Stuff
 
 [This program uses FFmpeg which is licensed under the LGPL 2.1 license](https://ffmpeg.org/legal.html)
