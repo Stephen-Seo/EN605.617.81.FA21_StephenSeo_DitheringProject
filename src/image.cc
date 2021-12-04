@@ -355,11 +355,7 @@ uint8_t Image::ColorToGray(uint8_t red, uint8_t green, uint8_t blue) {
   double y_linear = 0.2126 * (red / 255.0) + 0.7152 * (green / 255.0) +
                     0.0722 * (blue / 255.0);
 
-  if (y_linear <= 0.0031308) {
-    return std::round((12.92 * y_linear) * 255.0);
-  } else {
-    return std::round((1.055 * std::pow(y_linear, 1 / 2.4) - 0.055) * 255.0);
-  }
+  return std::round(y_linear * 255.0);
 }
 
 std::unique_ptr<Image> Image::ToGrayscale() const {
