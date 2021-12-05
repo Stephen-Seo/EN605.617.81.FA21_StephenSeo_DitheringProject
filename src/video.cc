@@ -213,6 +213,7 @@ bool Video::DitherVideo(const std::string &output_filename, Image *blue_noise,
     enc_stream->time_base = time_base;
     enc_codec_context->time_base = time_base;
     enc_codec_context->gop_size = 12;
+    enc_codec_context->global_quality = 23;
     enc_codec_context->pix_fmt = AVPixelFormat::AV_PIX_FMT_YUV444P;
     if (avf_enc_context->oformat->flags & AVFMT_GLOBALHEADER) {
       enc_codec_context->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;

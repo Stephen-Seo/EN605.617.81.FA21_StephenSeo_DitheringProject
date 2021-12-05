@@ -16,7 +16,7 @@ constexpr unsigned int kReadBufPaddingSize = AV_INPUT_BUFFER_PADDING_SIZE;
 constexpr unsigned int kReadBufSizeWithPadding =
     kReadBufSize + kReadBufPaddingSize;
 
-constexpr unsigned int kOutputBitrate = 40000000;
+constexpr unsigned int kOutputBitrate = 80000000;
 
 /*!
  * \brief Helper class that uses Image and OpenCLHandle to dither video frames.
