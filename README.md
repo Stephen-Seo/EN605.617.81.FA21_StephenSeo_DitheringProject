@@ -25,10 +25,11 @@ output video being encoded hasn't been implemented yet. The current
 implementation writes each video frame to a PNG image in the current
 directory.~~
 
-Video decoding and encoding is finished, but there is some noticable drops in
-quality when encoding to colored dithered video. It may be better to just
-output each frame to individual PNGs, then combining them later just like as
-mentioned here: https://trac.ffmpeg.org/wiki/Slideshow .
+Video decoding and encoding is finished, ~~but there is some noticable drops in
+quality when encoding to colored dithered video~~ but the resulting video may
+end up being too large. It may be better to just output each frame to individual
+PNGs, then combining them later just like as mentioned here with the params you
+want set: https://trac.ffmpeg.org/wiki/Slideshow .
 
 # Other Notes
 

@@ -47,8 +47,8 @@ class Video {
    * \brief Dithers the frames in the input video.
    *
    * If output_as_pngs is true, then the output will be individaul PNGs of each
-   * frame instead of a video file. This may be desireable because the output
-   * video struggles to maintain video quality.
+   * frame instead of a video file. This may be desireable for more control over
+   * the params set when encoding the resulting video.
    *
    * \return True on success.
    */
