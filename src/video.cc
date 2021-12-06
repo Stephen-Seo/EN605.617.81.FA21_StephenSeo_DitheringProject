@@ -120,8 +120,40 @@ bool Video::DitherVideo(const std::string &output_filename, Image *blue_noise,
       avf_dec_context->streams[video_stream_idx]->codecpar->width;
   unsigned int height =
       avf_dec_context->streams[video_stream_idx]->codecpar->height;
-  auto r_frame_rate = avf_dec_context->streams[video_stream_idx]->r_frame_rate;
-  decltype(r_frame_rate) time_base = {r_frame_rate.den, r_frame_rate.num};
+
+  // try to get frame rate from duration, nb_frames, and input time_base
+  AVRational input_time_base =
+      avf_dec_context->streams[video_stream_idx]->time_base;
+  double duration = avf_dec_context->streams[video_stream_idx]->duration;
+  double frames = avf_dec_context->streams[video_stream_idx]->nb_frames;
+  AVRational time_base = {0, 0};
+  if (duration > 0 && frames > 0 && input_time_base.num > 0 &&
+      input_time_base.den > 0) {
+    double fps = (double)input_time_base.den / (double)input_time_base.num /
+                 (duration / frames);
+    std::cout << "Got fps == " << fps << std::endl;
+    if (fps > 0) {
+      time_base.den = fps * 100000;
+      time_base.num = 100000;
+    }
+  }
+
+  if (time_base.num == 0 && time_base.den == 0) {
+    if (avf_dec_context->streams[video_stream_idx]->codecpar->codec_id ==
+        AV_CODEC_ID_H264) {
+      // get time_base from avg_frame_rate
+      AVRational *avg_frame_rate =
+          &avf_dec_context->streams[video_stream_idx]->avg_frame_rate;
+      time_base = {avg_frame_rate->den, avg_frame_rate->num};
+    } else {
+      // get time_base from r_frame_rate
+      AVRational *r_frame_rate =
+          &avf_dec_context->streams[video_stream_idx]->r_frame_rate;
+      time_base = {r_frame_rate->den, r_frame_rate->num};
+    }
+  }
+  std::cout << "Setting time_base of " << time_base.num << "/" << time_base.den
+            << std::endl;
 
   // Alloc a packet object for reading packets
   AVPacket *pkt = av_packet_alloc();
