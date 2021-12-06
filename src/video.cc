@@ -295,6 +295,7 @@ bool Video::DitherVideo(const std::string &output_filename, Image *blue_noise,
         avcodec_close(enc_codec_context);
         avformat_free_context(avf_enc_context);
         av_frame_free(&frame);
+        av_packet_unref(pkt);
         av_packet_free(&pkt);
         avcodec_free_context(&codec_ctx);
         avformat_close_input(&avf_dec_context);
@@ -307,6 +308,7 @@ bool Video::DitherVideo(const std::string &output_filename, Image *blue_noise,
             avcodec_close(enc_codec_context);
             avformat_free_context(avf_enc_context);
             av_frame_free(&frame);
+            av_packet_unref(pkt);
             av_packet_free(&pkt);
             avcodec_free_context(&codec_ctx);
             avformat_close_input(&avf_dec_context);
@@ -316,6 +318,7 @@ bool Video::DitherVideo(const std::string &output_filename, Image *blue_noise,
         }
       }
     }
+    av_packet_unref(pkt);
   }
 
   // flush decoders

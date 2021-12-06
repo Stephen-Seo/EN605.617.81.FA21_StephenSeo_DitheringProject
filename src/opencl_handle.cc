@@ -11,6 +11,7 @@ OpenCLContext::Ptr OpenCLContext::instance_ = {};
 OpenCLContext::OpenCLHandle::OpenCLHandle() : opencl_ptr_(), kernels_() {}
 
 OpenCLContext::OpenCLHandle::~OpenCLHandle() {
+  std::cout << "Destructing OpenCLHandle..." << std::endl;
   CleanupAllKernels();
   OpenCLContext::CleanupInstance();
 }
@@ -769,6 +770,7 @@ OpenCLContext::OpenCLContext() : context_(nullptr), queue_(nullptr) {
 }
 
 OpenCLContext::~OpenCLContext() {
+  std::cout << "Destructing OpenCLContext..." << std::endl;
   if (queue_) {
     clReleaseCommandQueue(queue_);
   }
