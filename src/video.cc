@@ -474,6 +474,9 @@ std::tuple<bool, std::vector<AVFrame *>> Video::HandleDecodingPacket(
     }
 
     if (output_as_pngs) {
+      // free temp_frame as it will not be used on this branch
+      av_frame_free(&temp_frame);
+      // get png output name padded with zeroes
       std::string out_name = "output_";
       unsigned int tens = 1;
       for (unsigned int i = 0; i < 9; ++i) {
@@ -484,6 +487,7 @@ std::tuple<bool, std::vector<AVFrame *>> Video::HandleDecodingPacket(
       }
       out_name += std::to_string(frame_count_);
       out_name += ".png";
+      // write png from frame
       if (!dithered_image->SaveAsPNG(out_name, true)) {
         return {false, {}};
       }
