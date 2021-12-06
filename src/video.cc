@@ -487,90 +487,90 @@ std::tuple<bool, std::vector<AVFrame *>> Video::HandleDecodingPacket(
       if (!dithered_image->SaveAsPNG(out_name, true)) {
         return {false, {}};
       }
-      return {true, {}};
-    }
-
-    // convert grayscale/RGBA to YUV444p
-    if (sws_enc_context_ != nullptr && color_changed) {
-      // switched between grayscale/RGBA, context needs to be recreated
-      sws_freeContext(sws_enc_context_);
-      sws_enc_context_ = nullptr;
-    }
-    if (sws_enc_context_ == nullptr) {
-      sws_enc_context_ = sws_getContext(
-          frame->width, frame->height,
-          grayscale ? AVPixelFormat::AV_PIX_FMT_GRAY8
-                    : AVPixelFormat::AV_PIX_FMT_RGBA,
-          frame->width, frame->height, AVPixelFormat::AV_PIX_FMT_YUV444P,
-          SWS_BILINEAR, nullptr, nullptr, nullptr);
-      if (sws_enc_context_ == nullptr) {
-        std::cout << "ERROR: Failed to init sws_enc_context_" << std::endl;
-        return {false, {}};
+    } else {
+      // convert grayscale/RGBA to YUV444p
+      if (sws_enc_context_ != nullptr && color_changed) {
+        // switched between grayscale/RGBA, context needs to be recreated
+        sws_freeContext(sws_enc_context_);
+        sws_enc_context_ = nullptr;
       }
-    }
+      if (sws_enc_context_ == nullptr) {
+        sws_enc_context_ = sws_getContext(
+            frame->width, frame->height,
+            grayscale ? AVPixelFormat::AV_PIX_FMT_GRAY8
+                      : AVPixelFormat::AV_PIX_FMT_RGBA,
+            frame->width, frame->height, AVPixelFormat::AV_PIX_FMT_YUV444P,
+            SWS_BILINEAR, nullptr, nullptr, nullptr);
+        if (sws_enc_context_ == nullptr) {
+          std::cout << "ERROR: Failed to init sws_enc_context_" << std::endl;
+          return {false, {}};
+        }
+      }
 
-    // rgba data info
-    if (grayscale) {
-      av_frame_free(&temp_frame);
-      temp_frame = av_frame_alloc();
-      temp_frame->format = AVPixelFormat::AV_PIX_FMT_GRAY8;
-      temp_frame->width = frame->width;
-      temp_frame->height = frame->height;
-      return_value = av_frame_get_buffer(temp_frame, 0);
-      if (return_value != 0) {
+      // rgba data info
+      if (grayscale) {
+        av_frame_free(&temp_frame);
+        temp_frame = av_frame_alloc();
+        temp_frame->format = AVPixelFormat::AV_PIX_FMT_GRAY8;
+        temp_frame->width = frame->width;
+        temp_frame->height = frame->height;
+        return_value = av_frame_get_buffer(temp_frame, 0);
+        if (return_value != 0) {
+          std::cout << "ERROR: Failed to init temp_frame for conversion from "
+                       "grayscale"
+                    << std::endl;
+          av_frame_free(&temp_frame);
+          return {false, {}};
+        }
+        std::memcpy(temp_frame->data[0], dithered_image->data_.data(),
+                    frame->width * frame->height);
+      } else {
+        temp_frame->format = AVPixelFormat::AV_PIX_FMT_RGBA;
+        temp_frame->width = frame->width;
+        temp_frame->height = frame->height;
+        return_value = av_frame_get_buffer(temp_frame, 0);
+        if (return_value != 0) {
+          std::cout
+              << "ERROR: Failed to init temp_frame for conversion from RGBA"
+              << std::endl;
+          av_frame_free(&temp_frame);
+          return {false, {}};
+        }
+        std::memcpy(temp_frame->data[0], dithered_image->data_.data(),
+                    4 * frame->width * frame->height);
+      }
+
+      AVFrame *yuv_frame = av_frame_alloc();
+      if (frame == nullptr) {
         std::cout
-            << "ERROR: Failed to init temp_frame for conversion from grayscale"
+            << "ERROR: Failed to alloc AVFrame for receiving YUV444p from RGBA"
             << std::endl;
         av_frame_free(&temp_frame);
         return {false, {}};
       }
-      std::memcpy(temp_frame->data[0], dithered_image->data_.data(),
-                  frame->width * frame->height);
-    } else {
-      temp_frame->format = AVPixelFormat::AV_PIX_FMT_RGBA;
-      temp_frame->width = frame->width;
-      temp_frame->height = frame->height;
-      return_value = av_frame_get_buffer(temp_frame, 0);
-      if (return_value != 0) {
-        std::cout << "ERROR: Failed to init temp_frame for conversion from RGBA"
+      yuv_frame->format = AVPixelFormat::AV_PIX_FMT_YUV444P;
+      yuv_frame->width = frame->width;
+      yuv_frame->height = frame->height;
+      return_value = av_frame_get_buffer(yuv_frame, 0);
+
+      return_value =
+          sws_scale(sws_enc_context_, temp_frame->data, temp_frame->linesize, 0,
+                    frame->height, yuv_frame->data, yuv_frame->linesize);
+      if (return_value <= 0) {
+        std::cout << "ERROR: Failed to convert RGBA to YUV444p with sws_scale"
                   << std::endl;
+        av_frame_free(&yuv_frame);
         av_frame_free(&temp_frame);
         return {false, {}};
       }
-      std::memcpy(temp_frame->data[0], dithered_image->data_.data(),
-                  4 * frame->width * frame->height);
-    }
 
-    AVFrame *yuv_frame = av_frame_alloc();
-    if (frame == nullptr) {
-      std::cout
-          << "ERROR: Failed to alloc AVFrame for receiving YUV444p from RGBA"
-          << std::endl;
+      // cleanup
       av_frame_free(&temp_frame);
-      return {false, {}};
-    }
-    yuv_frame->format = AVPixelFormat::AV_PIX_FMT_YUV444P;
-    yuv_frame->width = frame->width;
-    yuv_frame->height = frame->height;
-    return_value = av_frame_get_buffer(yuv_frame, 0);
-
-    return_value =
-        sws_scale(sws_enc_context_, temp_frame->data, temp_frame->linesize, 0,
-                  frame->height, yuv_frame->data, yuv_frame->linesize);
-    if (return_value <= 0) {
-      std::cout << "ERROR: Failed to convert RGBA to YUV444p with sws_scale"
-                << std::endl;
-      av_frame_free(&yuv_frame);
-      av_frame_free(&temp_frame);
-      return {false, {}};
-    }
-
-    // cleanup
-    av_frame_free(&temp_frame);
-    yuv_frame->pts = frame_count_ - 1;
-    yuv_frame->pkt_duration = 1;
-    return_frames.push_back(yuv_frame);
-  }
+      yuv_frame->pts = frame_count_ - 1;
+      yuv_frame->pkt_duration = 1;
+      return_frames.push_back(yuv_frame);
+    }  // else (!output_as_pngs)
+  }    // while (return_value >= 0)
 
   return {true, return_frames};
 }
