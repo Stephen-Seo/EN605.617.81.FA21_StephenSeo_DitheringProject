@@ -1,7 +1,5 @@
 #include "opencl_handle.h"
 
-#include <CL/cl.h>
-
 #include <fstream>
 #include <iostream>
 #include <vector>
