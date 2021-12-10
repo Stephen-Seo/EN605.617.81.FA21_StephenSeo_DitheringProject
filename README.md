@@ -15,6 +15,9 @@ A "blue-noise" image is integral to dithering images. A generated blue-noise
 image is provided in the "res/" directory. Run the program with "--help" to get
 info on how to use it.
 
+Blue-noise images were generated using [my other project that generates
+blue-noise with/without OpenCL](https://git.seodisparate.com/stephenseo/blue_noise_generation).
+
 PNG, PGM, and PPM image formats are supported.
 
 For decoding video, any format that ffmpeg can read should work (though if
