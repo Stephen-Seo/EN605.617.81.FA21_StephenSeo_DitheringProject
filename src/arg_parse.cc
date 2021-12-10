@@ -25,6 +25,8 @@ void Args::PrintUsage() {
          "  --video\t\t\t\tDither frames in a video\n"
          "  --video-pngs\t\t\t\tDither frames but output as individual pngs\n"
          "  --overwrite\t\t\t\tAllow overwriting existing files\n"
+         "It is recommended to use the .png extension for image output, and "
+         ".mp4 for video output."
       << std::endl;
 }
 
