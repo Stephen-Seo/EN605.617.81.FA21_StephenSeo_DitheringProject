@@ -56,3 +56,5 @@ up to C++11, std::unique\_ptr is used instead.
 # Legal Stuff
 
 [This program uses FFmpeg which is licensed under the LGPL 2.1 license](https://ffmpeg.org/legal.html)
+
+[This program uses libpng which is licensed under the PNG Reference Library License Version 2](http://www.libpng.org/pub/png/src/libpng-LICENSE.txt)
