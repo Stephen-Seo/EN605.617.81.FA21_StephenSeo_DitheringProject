@@ -49,6 +49,10 @@ return an optional value (non-optional on success). Ideally, C++17's
 std::optional would be used in that case, but since I am keeping things to work
 up to C++11, std::unique\_ptr is used instead.
 
+# Project Presentation
+
+[Click here to view the presentation](https://igpup.seodisparate.com/posts/project_presentation/)
+
 # Legal Stuff
 
 [This program uses FFmpeg which is licensed under the LGPL 2.1 license](https://ffmpeg.org/legal.html)
