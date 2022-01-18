@@ -8,6 +8,9 @@ keep the project working. As of 2022-01-18, there may be (after now) a version
 `1.1.0` or `1.0.1` due to keeping up to date with the FFmpeg dependency as a new
 major version of FFmpeg was released (version `5.0`).
 
+To be clear, version `1.0.0` of this project is expected to work with FFmpeg
+version `4.4`.
+
 ## Background
 
 [Project Proposal PDF](https://seodisparate.com/static/uploads/EN605.617.81.FA21_ProjectProposal.pdf)
