@@ -18,8 +18,6 @@ version `4.4`.
 The proposal mentioned dithering live-input frames, but I ended up with just
 dithering single images or turning a video into dithered images.
 
-The "develop" branch may have more up to date code.
-
 # Usage
 
 A "blue-noise" image is integral to dithering images. A generated blue-noise
