@@ -28,7 +28,28 @@ find_package(PNG REQUIRED)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(FFMPEG_LIBAVCODEC REQUIRED
-    libavcodec<=58.134.100 libavformat<=58.76.100 libavutil<=56.70.100 libswscale<=5.9.100)
+    libavcodec libavformat libavutil libswscale)
+
+if(${FFMPEG_LIBAVCODEC_libavcodec_VERSION} VERSION_GREATER "58.134.100"
+        OR
+    ${FFMPEG_LIBAVCODEC_libavformat_VERSION} VERSION_GREATER "58.76.100"
+        OR
+    ${FFMPEG_LIBAVCODEC_libavutil_VERSION} VERSION_GREATER "56.70.100"
+        OR
+    ${FFMPEG_LIBAVCODEC_libswscale_VERSION} VERSION_GREATER "5.9.100")
+    message(FATAL_ERROR "FFmpeg version is newer than expected, please use FFmpeg version 4.4")
+# The following may be necessary when moving to FFmpeg 5.0
+#elseif(${FFMPEG_LIBAVCODEC_libavcodec_VERSION} VERSION_LESS_EQUAL "58.91.100"
+#        OR
+#    ${FFMPEG_LIBAVCODEC_libavformat_VERSION} VERSION_LESS_EQUAL "58.45.100"
+#        OR
+#    ${FFMPEG_LIBAVCODEC_libavutil_VERSION} VERSION_LESS_EQUAL "56.51.100"
+#        OR
+#    ${FFMPEG_LIBAVCODEC_libswscale_VERSION} VERSION_LESS_EQUAL "5.7.100")
+#    message(FATAL_ERROR "FFmpeg version is older than expected, please use FFmpeg version 4.4")
+else()
+    message("FFmpeg version is OK")
+endif()
 
 target_include_directories(DitheringProject PUBLIC
   ${OpenCL_INCLUDE_DIRS}
