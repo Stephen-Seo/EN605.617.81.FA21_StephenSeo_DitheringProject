@@ -6,9 +6,9 @@
 of the course. Newer versions are meant to be maintenance releases; fixes that
 keep the project working. As of 2022-01-18, there may be (after now) a version
 `1.1.0` or `1.0.1` due to keeping up to date with the FFmpeg dependency as a new
-major version of FFmpeg was released (version `5.0`).
+major version of FFmpeg was released (version `5.0`).~~
 
-To be clear, version `1.0.0` of this project is expected to work with FFmpeg
+~~To be clear, version `1.0.0` of this project is expected to work with FFmpeg
 version `4.4`.~~
 
 Fixes were applied for FFmpeg version 5. A macro is used to change incompatible
