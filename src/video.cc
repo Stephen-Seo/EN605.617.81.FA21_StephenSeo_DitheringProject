@@ -74,7 +74,11 @@ bool Video::DitherVideo(const std::string &output_filename, Image *blue_noise,
   }
 
   // Get "best" video stream
+#if LIBAVFORMAT_VERSION_MAJOR >= 59
+  const AVCodec *dec_codec = nullptr;
+#else
   AVCodec *dec_codec = nullptr;
+#endif
   return_value = av_find_best_stream(
       avf_dec_context, AVMediaType::AVMEDIA_TYPE_VIDEO, -1, -1, &dec_codec, 0);
   if (return_value < 0) {
@@ -193,7 +197,11 @@ bool Video::DitherVideo(const std::string &output_filename, Image *blue_noise,
 
   // set output video codec (h264)
   AVCodecContext *enc_codec_context = nullptr;
+#if LIBAVCODEC_VERSION_MAJOR >= 59
+  const AVCodec *enc_codec = nullptr;
+#else
   AVCodec *enc_codec = nullptr;
+#endif
 
   // get H264 codec
   if (!output_as_pngs) {
