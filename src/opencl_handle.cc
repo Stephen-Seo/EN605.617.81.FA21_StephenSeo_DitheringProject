@@ -694,33 +694,59 @@ OpenCLContext::OpenCLContext() : context_(nullptr), queue_(nullptr) {
   //////////////////// set up cl_context
   cl_int err_num;
   cl_uint num_platforms;
-  cl_platform_id first_platform_id;
+  std::vector<cl_platform_id> platform_ids;
 
-  err_num = clGetPlatformIDs(1, &first_platform_id, &num_platforms);
-  if (err_num != CL_SUCCESS || num_platforms == 0) {
+  err_num = clGetPlatformIDs(0, nullptr, &num_platforms);
+  if (err_num != CL_SUCCESS) {
+    std::cout << "ERROR: OpenCLContext: Failed to query OpenCL platforms"
+              << std::endl;
+    return;
+  } else if (num_platforms == 0) {
     std::cout << "ERROR: OpenCLContext: Failed to find any OpenCL platforms"
               << std::endl;
     return;
   }
 
-  cl_context_properties context_properties[] = {
-      CL_CONTEXT_PLATFORM,
-      reinterpret_cast<cl_context_properties>(first_platform_id), 0};
+  platform_ids.resize(num_platforms);
 
-  context_ = clCreateContextFromType(context_properties, CL_DEVICE_TYPE_GPU,
-                                     nullptr, nullptr, &err_num);
-
+  err_num = clGetPlatformIDs(num_platforms, platform_ids.data(), nullptr);
   if (err_num != CL_SUCCESS) {
-    std::cout << "ERROR: OpenCLContext: Failed to create GPU context, "
-              << "trying CPU..." << std::endl;
-    context_ = clCreateContextFromType(context_properties, CL_DEVICE_TYPE_CPU,
+    std::cout << "ERROR: OpenCLContext: Failed to get OpenCL platform id(s)"
+              << std::endl;
+    return;
+  }
+
+  bool success = false;
+  for (auto i = 0; i < num_platforms; ++i) {
+    cl_context_properties context_properties[] = {
+        CL_CONTEXT_PLATFORM,
+        reinterpret_cast<cl_context_properties>(platform_ids[i]), 0};
+
+    context_ = clCreateContextFromType(context_properties, CL_DEVICE_TYPE_GPU,
                                        nullptr, nullptr, &err_num);
+
     if (err_num != CL_SUCCESS) {
-      std::cout << "ERROR: OpenCLContext: Failed to create CPU context"
-                << std::endl;
-      context_ = nullptr;
-      return;
+      std::cout << "ERROR: OpenCLContext: Failed to create GPU context, "
+                << "trying CPU..." << std::endl;
+      context_ = clCreateContextFromType(context_properties, CL_DEVICE_TYPE_CPU,
+                                         nullptr, nullptr, &err_num);
+      if (err_num != CL_SUCCESS) {
+        std::cout << "ERROR: OpenCLContext: Failed to create CPU context"
+                  << std::endl;
+        context_ = nullptr;
+        continue;
+      } else {
+        success = true;
+        break;
+      }
+    } else {
+      success = true;
+      break;
     }
+  }
+  if (!success) {
+    std::cout << "ERROR: OpenCLContext: Failed to find a valid OpenCL context!"
+              << std::endl;
   }
   //////////////////// end set up cl context
 
