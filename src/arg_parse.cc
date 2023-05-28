@@ -7,6 +7,7 @@ Args::Args()
     : do_dither_image_(true),
       do_dither_grayscaled_(false),
       do_overwrite_(false),
+      do_video_pngs_(false),
       input_filename(),
       output_filename() {}
 
