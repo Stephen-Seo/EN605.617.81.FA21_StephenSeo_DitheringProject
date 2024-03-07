@@ -717,7 +717,7 @@ OpenCLContext::OpenCLContext() : context_(nullptr), queue_(nullptr) {
   }
 
   bool success = false;
-  for (auto i = 0; i < num_platforms; ++i) {
+  for (cl_uint i = 0; i < num_platforms; ++i) {
     cl_context_properties context_properties[] = {
         CL_CONTEXT_PLATFORM,
         reinterpret_cast<cl_context_properties>(platform_ids[i]), 0};
