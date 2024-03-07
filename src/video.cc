@@ -614,7 +614,11 @@ std::tuple<bool, std::vector<AVFrame *>> Video::HandleDecodingPacket(
       // cleanup
       av_frame_free(&temp_frame);
       yuv_frame->pts = frame_count_ - 1;
+#if LIBAVUTIL_VERSION_INT < AV_VERSION_INT(58, 2, 100)
       yuv_frame->pkt_duration = 1;
+#else
+      yuv_frame->duration = 1;
+#endif
       return_frames.push_back(yuv_frame);
     }  // else (!output_as_pngs)
   }    // while (return_value >= 0)
