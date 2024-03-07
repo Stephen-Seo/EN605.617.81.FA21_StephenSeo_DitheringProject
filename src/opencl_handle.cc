@@ -780,7 +780,8 @@ OpenCLContext::OpenCLContext() : context_(nullptr), queue_(nullptr) {
   }
 
   // uses first available device
-  queue_ = clCreateCommandQueue(context_, devices.at(0), 0, &err_num);
+  queue_ = clCreateCommandQueueWithProperties(context_, devices.at(0), nullptr,
+                                              &err_num);
   if (err_num != CL_SUCCESS) {
     std::cout << "ERROR: OpenCLContext: Failed to create command queue"
               << std::endl;

@@ -40,3 +40,6 @@ target_link_libraries(DitheringProject PUBLIC
   ${PNG_LIBRARIES}
   ${FFMPEG_LIBAVCODEC_LINK_LIBRARIES}
 )
+
+target_compile_definitions(DitheringProject PRIVATE
+  CL_TARGET_OPENCL_VERSION=300)
