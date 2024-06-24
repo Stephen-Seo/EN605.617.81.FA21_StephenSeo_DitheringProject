@@ -11,6 +11,14 @@ extern "C" {
 
 #include "image.h"
 
+inline void IGPUP_DITHERING_avcodec_close_ctx(AVCodecContext **avctx) {
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(61, 3, 100)
+  avcodec_free_context(avctx);
+#else
+  avcodec_close(*avctx);
+#endif
+}
+
 constexpr unsigned int kReadBufSize = 4096;
 constexpr unsigned int kReadBufPaddingSize = AV_INPUT_BUFFER_PADDING_SIZE;
 constexpr unsigned int kReadBufSizeWithPadding =

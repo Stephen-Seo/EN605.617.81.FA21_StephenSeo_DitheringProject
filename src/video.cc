@@ -265,7 +265,7 @@ bool Video::DitherVideo(const std::string &output_filename, Image *blue_noise,
     return_value = avcodec_open2(enc_codec_context, enc_codec, nullptr);
     if (return_value != 0) {
       std::cout << "ERROR: Failed to init enc_codec_context" << std::endl;
-      avcodec_close(enc_codec_context);
+      IGPUP_DITHERING_avcodec_close_ctx(&enc_codec_context);
       avformat_free_context(avf_enc_context);
       av_frame_free(&frame);
       av_packet_free(&pkt);
@@ -279,7 +279,7 @@ bool Video::DitherVideo(const std::string &output_filename, Image *blue_noise,
     if (return_value < 0) {
       std::cout << "ERROR: Failed to set encoding codec parameters in stream"
                 << std::endl;
-      avcodec_close(enc_codec_context);
+      IGPUP_DITHERING_avcodec_close_ctx(&enc_codec_context);
       avformat_free_context(avf_enc_context);
       av_frame_free(&frame);
       av_packet_free(&pkt);
@@ -298,7 +298,7 @@ bool Video::DitherVideo(const std::string &output_filename, Image *blue_noise,
       if (return_value < 0) {
         std::cout << "ERROR: Failed to open file \"" << output_filename
                   << "\" for writing" << std::endl;
-        avcodec_close(enc_codec_context);
+        IGPUP_DITHERING_avcodec_close_ctx(&enc_codec_context);
         avformat_free_context(avf_enc_context);
         av_frame_free(&frame);
         av_packet_free(&pkt);
@@ -313,7 +313,7 @@ bool Video::DitherVideo(const std::string &output_filename, Image *blue_noise,
     if (return_value < 0) {
       std::cout << "ERROR: Failed to write header in output video file"
                 << std::endl;
-      avcodec_close(enc_codec_context);
+      IGPUP_DITHERING_avcodec_close_ctx(&enc_codec_context);
       avformat_free_context(avf_enc_context);
       av_frame_free(&frame);
       av_packet_free(&pkt);
@@ -332,7 +332,7 @@ bool Video::DitherVideo(const std::string &output_filename, Image *blue_noise,
           HandleDecodingPacket(codec_ctx, pkt, frame, blue_noise, grayscale,
                                color_changed, output_as_pngs);
       if (!std::get<0>(ret_tuple)) {
-        avcodec_close(enc_codec_context);
+        IGPUP_DITHERING_avcodec_close_ctx(&enc_codec_context);
         avformat_free_context(avf_enc_context);
         av_frame_free(&frame);
         av_packet_unref(pkt);
@@ -345,7 +345,7 @@ bool Video::DitherVideo(const std::string &output_filename, Image *blue_noise,
           if (!HandleEncodingFrame(avf_enc_context, enc_codec_context,
                                    yuv_frame, enc_stream)) {
             av_frame_free(&yuv_frame);
-            avcodec_close(enc_codec_context);
+            IGPUP_DITHERING_avcodec_close_ctx(&enc_codec_context);
             avformat_free_context(avf_enc_context);
             av_frame_free(&frame);
             av_packet_unref(pkt);
@@ -366,7 +366,7 @@ bool Video::DitherVideo(const std::string &output_filename, Image *blue_noise,
       HandleDecodingPacket(codec_ctx, nullptr, frame, blue_noise, grayscale,
                            color_changed, output_as_pngs);
   if (!std::get<0>(ret_tuple)) {
-    avcodec_close(enc_codec_context);
+    IGPUP_DITHERING_avcodec_close_ctx(&enc_codec_context);
     avformat_free_context(avf_enc_context);
     av_frame_free(&frame);
     av_packet_free(&pkt);
@@ -378,7 +378,7 @@ bool Video::DitherVideo(const std::string &output_filename, Image *blue_noise,
       if (!HandleEncodingFrame(avf_enc_context, enc_codec_context, yuv_frame,
                                enc_stream)) {
         av_frame_free(&yuv_frame);
-        avcodec_close(enc_codec_context);
+        IGPUP_DITHERING_avcodec_close_ctx(&enc_codec_context);
         avformat_free_context(avf_enc_context);
         av_frame_free(&frame);
         av_packet_free(&pkt);
@@ -394,7 +394,7 @@ bool Video::DitherVideo(const std::string &output_filename, Image *blue_noise,
     // flush encoder
     if (!HandleEncodingFrame(avf_enc_context, enc_codec_context, nullptr,
                              enc_stream)) {
-      avcodec_close(enc_codec_context);
+      IGPUP_DITHERING_avcodec_close_ctx(&enc_codec_context);
       avformat_free_context(avf_enc_context);
       av_frame_free(&frame);
       av_packet_free(&pkt);
@@ -409,7 +409,7 @@ bool Video::DitherVideo(const std::string &output_filename, Image *blue_noise,
 
   // cleanup
   if (enc_codec_context) {
-    avcodec_close(enc_codec_context);
+    IGPUP_DITHERING_avcodec_close_ctx(&enc_codec_context);
   }
   if (!output_as_pngs && !(avf_enc_context->oformat->flags & AVFMT_NOFILE)) {
     avio_closep(&avf_enc_context->pb);
