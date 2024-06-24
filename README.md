@@ -11,10 +11,14 @@ major version of FFmpeg was released (version `5.0`).~~
 ~~To be clear, version `1.0.0` of this project is expected to work with FFmpeg
 version `4.4`.~~
 
-Fixes were applied for FFmpeg version 5. A macro is used to change incompatible
+~~Fixes were applied for FFmpeg version 5. A macro is used to change incompatible
 code based on what version of FFmpeg is specified in the headers, so external
 checking of version is not necessary. Thus, the latest version of this repo
-should work with both FFmpeg 5.0 and 4.4.
+should work with both FFmpeg 5.0 and 4.4.~~
+
+This software has been tested to work with FFmpeg version 7. A change was
+introduced to handle a deprecated function. This means that the deprecated
+function will only be used if the FFmpeg version is less than 7.
 
 ## Background
 
